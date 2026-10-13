@@ -1,6 +1,6 @@
-/* AA HEADER E NAVIGAZIONE MOBILE */
+/* AA SEZIONE 14: HEADER E NAVIGAZIONE */
 
-/* BB Header Principale */
+/* BB Layout Header Principale */
 .header-inner {
     width: 100%;
     display: flex;
@@ -15,6 +15,7 @@
     z-index: 1000;
 }
 
+/* BB Logo E Brand */
 .logo-nav {
     width: 35px;
     height: 35px;
@@ -32,13 +33,42 @@
     font-size: 1.1rem;
     font-weight: 800;
     color: #334155 !important;
-    /* Assicurato colore scuro visibile */
     letter-spacing: -0.3px;
     display: inline-block !important;
-    /* Forza visibilità */
 }
 
-/* CC Stato Rete */
+/* BB Bottone Export Nella Navbar */
+.btn-navbar-export {
+    width: 38px;
+    height: 38px;
+    flex-shrink: 0;
+    margin-left: auto;
+    background: #ffffff;
+    border: 1px solid #fce4e8;
+    border-radius: 12px;
+    color: #bf4f8a;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.07);
+    transition: box-shadow 0.2s ease, transform 0.1s ease;
+    -webkit-tap-highlight-color: transparent;
+}
+
+.btn-navbar-export:hover {
+    box-shadow: 0 4px 16px rgba(191, 79, 138, 0.15);
+}
+
+.btn-navbar-export:active {
+    transform: scale(0.94);
+}
+
+.btn-navbar-export svg {
+    width: 18px;
+    height: 18px;
+}
+
+/* BB Indicatore Stato Rete (Network LED) */
 .status-led {
     min-width: 12px;
     min-height: 12px;
@@ -50,24 +80,29 @@
     box-shadow: 0 0 4px rgba(0, 0, 0, 0.2);
 }
 
-/* CC Stati Led */
+/* CC Stato Online: Verde Con Alone */
 .status-led.online {
     background-color: #22c55e !important;
     box-shadow: 0 0 8px #22c55e;
 }
 
+/* CC Stato Offline: Rosso Con Alone */
 .status-led.offline {
     background-color: #ef4444 !important;
     box-shadow: 0 0 8px #ef4444;
 }
 
+/* CC Stato Sincronizzazione: Blu Pulsante */
 .status-led.syncing {
     background-color: #3b82f6 !important;
     box-shadow: 0 0 10px #3b82f6;
     animation: pulse-led 0.8s infinite alternate;
 }
 
-/* BB Bottom Navigation Bar */
+
+/* AA SEZIONE 15: BARRA DI NAVIGAZIONE INFERIORE (BOTTOM NAV) */
+
+/* BB Contenitore Bottom Nav */
 .bottom-nav {
     position: fixed;
     bottom: 0;
@@ -84,6 +119,7 @@
     box-shadow: 0 -4px 15px rgba(0, 0, 0, 0.05);
 }
 
+/* BB Bottoni Navigazione Standard */
 .nav-btn {
     display: flex;
     flex-direction: column;
@@ -102,6 +138,7 @@
     color: #bf4f8a;
 }
 
+/* BB Bottone Centrale (Pill Plus) */
 .nav-btn-plus {
     background: #bf4f8a;
     color: white;
@@ -121,9 +158,174 @@
     transform: scale(0.9) translateY(-25px);
 }
 
-/* AA REPORT GIORNALIERO E DASHBOARD */
 
-/* BB Layout Report */
+/* AA SEZIONE 16: MENU RAPIDO (QUICK ADD FUMETTO)
+*/
+
+/* BB Posizionamento E Contenitore */
+.quick-add-menu {
+    position: fixed;
+    bottom: 90px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 1100;
+    width: 250px;
+}
+
+/* BB Card Del Menu Con Freccia Inferiore */
+.menu-content {
+    background: white;
+    border-radius: 24px;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.15);
+    padding: 15px;
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    animation: scaleUp 0.2s ease-out;
+}
+
+.menu-content::after {
+    content: '';
+    position: absolute;
+    bottom: -10px;
+    left: 50%;
+    margin-left: -17px;
+    border-width: 10px 10px 0;
+    border-style: solid;
+    border-color: white transparent;
+}
+
+/* BB Singola Voce Del Menu */
+.menu-item {
+    border: none;
+    background: none;
+    padding: 12px 20px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    font-weight: 600;
+    font-size: 0.9rem;
+    color: #334155;
+    border-radius: 12px;
+    transition: background 0.2s;
+}
+
+.menu-item:hover {
+    background: #f8fafc;
+}
+
+/* BB Sfondo Scuro Per Chiusura Al Click Fuori */
+.menu-backdrop {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    z-index: -1;
+}
+
+
+/* AA SEZIONE 17: MODALI */
+
+/* BB Struttura E Bordi Modal */
+.modal-content {
+    border-radius: 24px !important;
+    border: none !important;
+    overflow: hidden;
+    box-shadow: 0 20px 40px -10px rgba(0, 0, 0, 0.15) !important;
+}
+
+.modal-content .form-control:focus,
+.modal-content .form-select:focus {
+    box-shadow: 0 0 0 3px rgba(191, 79, 138, 0.15) !important;
+}
+
+/* BB Sezioni Interne */
+.modal-header {
+    padding: 24px 24px 0 24px !important;
+}
+
+.modal-title {
+    font-size: 1.25rem !important;
+    letter-spacing: -0.5px;
+    color: #1e293b;
+}
+
+.modal-body {
+    padding: 24px !important;
+}
+
+.modal-body .form-control,
+.modal-body .form-select {
+    padding: 12px 16px !important;
+    border-radius: 14px !important;
+    background-color: #f8fafc !important;
+    border: 1px solid #e2e8f0 !important;
+}
+
+.modal-body .form-control:focus {
+    background-color: #ffffff !important;
+    border-color: var(--primary) !important;
+}
+
+.modal-footer {
+    padding: 0 24px 24px 24px !important;
+}
+
+/* BB Etichetta Form Compatta Interna Ai Modal */
+.label-custom-sm {
+    font-size: 0.7rem;
+    font-weight: 800;
+    text-transform: uppercase;
+    color: #64748b;
+    margin-bottom: 6px;
+    margin-left: 2px;
+    letter-spacing: 0.5px;
+}
+
+/* BB Animazione Di Apertura Modal */
+.modal.fade .modal-dialog {
+    transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1), opacity 0.2s;
+    transform: scale(0.95);
+    opacity: 0;
+}
+
+.modal.show .modal-dialog {
+    transform: scale(1);
+    opacity: 1;
+}
+
+/* BB Modal Modifica Medico: Altezza Adattiva Con Scroll Nascosto */
+#modal-edit-client .modal-dialog {
+    display: flex;
+    align-items: center;
+    min-height: calc(100% - 1rem);
+    margin: auto;
+}
+
+#modal-edit-client .modal-content {
+    max-height: 97dvh;
+}
+
+#modal-edit-client .modal-body {
+    overflow-y: auto;
+    scrollbar-width: none;
+}
+
+#modal-edit-client .modal-body::-webkit-scrollbar {
+    display: none;
+}
+
+/* CC Override Padding Input Indirizzi Nel Modal Modifica */
+.modal-body #edit-address-container .form-control {
+    padding: 6px 12px !important;
+    border-radius: 10px !important;
+}
+
+
+/* AA SEZIONE 18: REPORT GIORNALIERO (DAY REPORT) */
+
+/* BB Layout E Sfondo Pagina Report */
 .report-body {
     background: #fafafa !important;
     font-family: 'Inter', sans-serif;
@@ -136,12 +338,13 @@
     padding: 24px 20px 60px;
 }
 
-/* BB Header */
+/* BB Header Report */
 .report-header {
     padding-top: 16px;
     margin-bottom: 32px;
 }
 
+/* CC Bottone Torna Indietro (Cerchio) */
 .btn-back-circle {
     width: 42px;
     height: 42px;
@@ -162,6 +365,7 @@
     box-shadow: 0 4px 16px rgba(191, 79, 138, 0.15);
 }
 
+/* CC Titolo Con Gradiente Brand */
 .report-title {
     font-size: 2rem !important;
     font-weight: 800;
@@ -182,7 +386,7 @@
     text-transform: capitalize;
 }
 
-/* BB Badge LIVE */
+/* CC Badge LIVE Con Pulsazione */
 .report-badge-today {
     font-size: 0.65rem;
     font-weight: 800;
@@ -199,19 +403,7 @@
     animation: pulse-badge 2s infinite;
 }
 
-@keyframes pulse-badge {
-
-    0%,
-    100% {
-        opacity: 1;
-    }
-
-    50% {
-        opacity: 0.5;
-    }
-}
-
-/* BB Card Statistiche */
+/* BB Card Statistiche Totale Visite */
 .report-stats-card .card {
     border-radius: 20px !important;
     background: linear-gradient(135deg, #bf4f8a 0%, #d4418e 100%) !important;
@@ -254,7 +446,7 @@
     height: 28px;
 }
 
-/* BB Sezione Lista */
+/* BB Lista Visite: Timeline Verticale */
 .section-divider-title {
     font-size: 0.7rem;
     font-weight: 800;
@@ -265,13 +457,13 @@
     padding-left: 4px;
 }
 
-/* BB Card Visita (Timeline) */
 .report-timeline {
     display: flex;
     flex-direction: column;
     gap: 12px;
 }
 
+/* BB Card Singola Visita */
 .visit-report-card {
     background: #ffffff;
     border-radius: 18px;
@@ -290,19 +482,7 @@
     box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08);
 }
 
-@keyframes slideUpFade {
-    from {
-        opacity: 0;
-        transform: translateY(12px);
-    }
-
-    to {
-        opacity: 1;
-        transform: translateY(0);
-    }
-}
-
-/* Numero progressivo */
+/* CC Numero Progressivo */
 .visit-num {
     font-size: 1.1rem;
     font-weight: 800;
@@ -313,7 +493,7 @@
     line-height: 1;
 }
 
-/* Info medico */
+/* CC Colonna Info Medico (Centro) */
 .visit-info {
     flex: 1;
     min-width: 0;
@@ -347,7 +527,7 @@
     flex-shrink: 0;
 }
 
-/* Colonna destra: orario + navigatore */
+/* CC Colonna Destra: Orario E Navigatore */
 .visit-right {
     display: flex;
     flex-direction: column;
@@ -388,7 +568,7 @@
     height: 14px;
 }
 
-/* BB Stato vuoto */
+/* BB Stato Vuoto Report (Nessuna Visita) */
 .report-empty {
     text-align: center;
     padding: 48px 20px;
@@ -418,185 +598,464 @@
     margin: 0;
 }
 
-/* AA Menu Rapido */
-/* --- AA: FUMETTO QUICK ADD --- */
-.quick-add-menu {
-    position: fixed;
-    bottom: 90px;
-    left: 50%;
-    transform: translateX(-50%);
-    z-index: 1100;
-    width: 250px;
+
+/* AA SEZIONE 19: TOM SELECT (DROPDOWN RICERCABILI) */
+
+/* BB Wrapper: Rimuove Il Doppio Bordo Da form-select */
+.ts-wrapper.form-select {
+    border: none !important;
+    padding: 0 !important;
 }
 
-.menu-content {
-    background: white;
-    border-radius: 24px;
-    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.15);
-    padding: 15px;
-    display: flex;
-    flex-direction: column;
-    gap: 5px;
-    animation: scaleUp 0.2s ease-out;
-}
-
-.menu-content::after {
-    content: '';
-    position: absolute;
-    bottom: -10px;
-    left: 50%;
-    margin-left: -17px;
-    border-width: 10px 10px 0;
-    border-style: solid;
-    border-color: white transparent;
-}
-
-.menu-item {
-    border: none;
-    background: none;
-    padding: 12px 20px;
+/* BB Campo Visibile (Controllo Chiuso) */
+.ts-control {
+    border: 1.5px solid #e2e8f0 !important;
+    border-radius: var(--radius-md) !important;
+    background-color: #f8fafc !important;
+    padding: 10px 14px !important;
+    font-family: 'Inter', sans-serif;
+    font-size: 0.95rem;
+    font-weight: 500;
+    color: var(--text-main);
+    min-height: 46px;
     display: flex;
     align-items: center;
-    gap: 12px;
-    font-weight: 600;
-    font-size: 0.9rem;
-    color: #334155;
-    border-radius: 12px;
-    transition: background 0.2s;
+    cursor: pointer;
+    transition: border-color 0.2s ease, box-shadow 0.2s ease;
 }
 
-.menu-item:hover {
-    background: #f8fafc;
-}
-
-@keyframes scaleUp {
-    from {
-        opacity: 0;
-        transform: scale(0.9) translateY(20px);
-    }
-
-    to {
-        opacity: 1;
-        transform: scale(1) translateY(0);
-    }
-}
-
-.menu-backdrop {
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    z-index: -1;
-}
-
-/* AA Modals */
-.label-custom-sm {
-    font-size: 0.7rem;
-    font-weight: 800;
-    text-transform: uppercase;
-    color: #64748b;
-    margin-bottom: 6px;
-    margin-left: 2px;
-    letter-spacing: 0.5px;
-}
-
-.modal-content {
-    border-radius: 24px !important;
-    border: none !important;
-    overflow: hidden;
-    box-shadow: 0 20px 40px -10px rgba(0, 0, 0, 0.15) !important;
-}
-
-.modal-content .form-control:focus,
-.modal-content .form-select:focus {
-    box-shadow: 0 0 0 3px rgba(191, 79, 138, 0.15) !important;
-}
-
-.modal-header {
-    padding: 24px 24px 0 24px !important;
-}
-
-.modal-title {
-    font-size: 1.25rem !important;
-    letter-spacing: -0.5px;
-    color: #1e293b;
-}
-
-.modal-body {
-    padding: 24px !important;
-}
-
-.modal-body .form-control,
-.modal-body .form-select {
-    padding: 12px 16px !important;
-    border-radius: 14px !important;
-    background-color: #f8fafc !important;
-    border: 1px solid #e2e8f0 !important;
-}
-
-.modal-body .form-control:focus {
-    background-color: #ffffff !important;
+/* CC Stato Focus Del Controllo */
+.ts-wrapper.focus .ts-control {
     border-color: var(--primary) !important;
+    box-shadow: 0 0 0 0.25rem rgba(255, 192, 203, 0.25) !important;
+    background-color: #ffffff !important;
+    outline: none;
 }
 
-.modal-footer {
-    padding: 0 24px 24px 24px !important;
+/* BB Input Di Ricerca Interno */
+.ts-control input {
+    font-family: 'Inter', sans-serif;
+    font-size: 0.95rem;
+    color: var(--text-main);
+    caret-color: var(--brand-color);
 }
 
-.modal.fade .modal-dialog {
-    transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1), opacity 0.2s;
-    transform: scale(0.95);
-    opacity: 0;
+.ts-control input::placeholder {
+    color: #94a3b8;
+    font-size: 0.9rem;
 }
 
-.modal.show .modal-dialog {
-    transform: scale(1);
-    opacity: 1;
+/* BB Dropdown (Lista Opzioni Aperta) */
+.ts-dropdown {
+    border: 1px solid #e2e8f0 !important;
+    border-radius: var(--radius-md) !important;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08) !important;
+    background: #ffffff !important;
+    margin-top: 6px !important;
+    overflow: hidden;
+    font-family: 'Inter', sans-serif;
 }
 
-/* AA Utility E Animazioni */
-
-/* BB Animazioni Selettore */
-
-
-@keyframes slideDown {
-    from {
-        opacity: 0;
-        transform: translateY(-10px);
-    }
-
-    to {
-        opacity: 1;
-        transform: translateY(0);
-    }
+/* CC Scroll Nascosto Nel Contenuto Dropdown */
+.ts-dropdown-content {
+    overflow-y: auto;
+    scrollbar-width: none;
 }
 
-/* BB Spaziatura Globale */
-body {
-    padding-bottom: calc(70px + env(safe-area-inset-bottom));
+.ts-dropdown-content::-webkit-scrollbar {
+    display: none;
 }
 
-.view {
-    padding-bottom: 20px;
+/* BB Singola Opzione Della Lista */
+.ts-dropdown .option {
+    padding: 10px 14px !important;
+    font-size: 0.9rem;
+    font-weight: 500;
+    color: var(--text-main);
+    cursor: pointer;
+    transition: background-color 0.15s ease;
+    border-radius: 0;
 }
 
-/* BB Pulsazione LED */
-@keyframes pulse-led {
-    from {
-        opacity: 0.4;
-    }
-
-    to {
-        opacity: 1;
-    }
+/* CC Opzione In Hover */
+.ts-dropdown .option.active {
+    background-color: var(--primary-light) !important;
+    color: var(--brand-color) !important;
 }
 
-/* BB Effetto Pressione */
-.btn:active,
-.appointment-item:active,
-.client-card:active,
-.task-card:active {
-    transform: scale(0.98) !important;
-    transition: transform 0.1s ease;
+/* CC Opzione Selezionata */
+.ts-dropdown .option.selected {
+    background-color: var(--primary) !important;
+    color: #4a5568 !important;
+    font-weight: 700;
+}
+
+/* CC Opzione Selezionata E In Hover Simultaneamente */
+.ts-dropdown .option.selected.active {
+    background-color: var(--primary-dark) !important;
+}
+
+/* CC Messaggio Nessun Risultato */
+.ts-dropdown .no-results {
+    padding: 12px 14px;
+    font-size: 0.85rem;
+    color: var(--text-muted);
+    font-style: italic;
+    text-align: center;
+}
+
+/* BB Valore Selezionato Visibile Nel Controllo Chiuso */
+.ts-control .item {
+    font-weight: 600;
+    color: var(--text-main);
+}
+
+/* BB Override Specificità Per Contesti Specifici */
+/* CC Override Day View */
+#day-view .ts-wrapper.form-select {
+    border: none !important;
+    padding: 0 !important;
+}
+
+/* CC Override Modal Body */
+.modal-body .ts-wrapper.form-select {
+    border: none !important;
+    padding: 0 !important;
+    border-radius: 0 !important;
+    background-color: transparent !important;
+}
+
+/* AA MODAL STORICO VISITE CLIENTE */
+/* BB Storico Visite */
+.btn-storico {
+    background-color: #7c3aed;
+}
+
+.storico-row {
+    background: #fafafa;
+    transition: background 0.15s ease;
+}
+
+.storico-row:hover {
+    background: #f1f5f9;
+}
+
+.storico-icon-wrap {
+    width: 32px;
+    height: 32px;
+    background: #f1f5f9;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    color: #64748b;
+}
+
+.storico-icon-wrap i {
+    width: 15px;
+    height: 15px;
+}
+
+/* ==========================================================================
+   AA SEZIONE 20: FEATURE RILASCIO CAMPIONI & DAY VIEW LIST TABS
+   ========================================================================== */
+
+/* BB Tripla Tab SaaS Style */
+.segmented-control {
+    background: #f1f5f9 !important;
+    padding: 5px !important;
+    border-radius: 16px !important;
+    border: 1px solid #e2e8f0 !important;
+    gap: 6px !important;
+}
+
+.segmented-btn {
+    border: none !important;
+    background: transparent !important;
+    color: #64748b !important;
+    font-weight: 600 !important;
+    font-size: 0.85rem !important;
+    padding: 9px 12px !important;
+    border-radius: 12px !important;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1) !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    gap: 6px !important;
+    box-shadow: none !important;
+    cursor: pointer;
+}
+
+.segmented-btn:hover {
+    color: #1e293b !important;
+    background: rgba(255, 255, 255, 0.6) !important;
+}
+
+.theme-indigo .segmented-btn.active {
+    background: #ffffff !important;
+    color: var(--primary-dark, #bf4f8a) !important;
+    font-weight: 700 !important;
+    box-shadow: 0 3px 10px rgba(0, 0, 0, 0.08) !important;
+}
+
+/* BB Badge Numerici nei Tab */
+.badge-count {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background-color: #cbd5e1;
+    color: #1e293b;
+    font-size: 0.72rem;
+    font-weight: 700;
+    min-width: 19px;
+    height: 19px;
+    padding: 0 5px;
+    border-radius: 999px;
+    margin-left: 2px;
+    line-height: 1;
+    transition: all 0.2s ease;
+}
+
+.segmented-btn.active .badge-count {
+    background-color: var(--primary-light, #fce7f3) !important;
+    color: var(--primary-dark, #bf4f8a) !important;
+}
+
+/* BB Gestione Liste Unificate (Sia PC che Mobile) */
+.day-lists-container {
+    width: 100% !important;
+    max-width: 100% !important;
+}
+
+#col-scheduled,
+#col-walkins,
+#col-samples {
+    display: none !important;
+    width: 100% !important;
+}
+
+#day-view.show-scheduled #col-scheduled {
+    display: block !important;
+}
+
+#day-view.show-walkins #col-walkins {
+    display: block !important;
+}
+
+#day-view.show-samples #col-samples {
+    display: block !important;
+}
+
+.day-list-column ul {
+    list-style: none !important;
+    padding-left: 0 !important;
+    margin-left: 0 !important;
+}
+
+/* BB Reset Puntini/Bullet Elenchi */
+#scheduled-ul,
+#walkins-ul,
+#samples-ul,
+li.appointment-item {
+    list-style: none !important;
+    list-style-type: none !important;
+}
+
+/* BB Fix Layout Card e Wrapping Pulsanti */
+.appointment-item {
+    list-style: none !important;
+    border-radius: 16px !important;
+    background: #ffffff;
+    margin-bottom: 14px !important;
+    padding: 16px !important;
+    border: 1px solid #f1f5f9;
+    width: 100% !important;
+}
+
+.appointment-item .action-buttons {
+    display: flex !important;
+    justify-content: space-between !important;
+    align-items: center !important;
+    flex-wrap: wrap !important;
+    gap: 10px !important;
+    width: 100% !important;
+    margin-top: 12px;
+}
+
+.appointment-item .action-buttons .d-flex {
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
+}
+
+/* BB Stile Card Campioni */
+.sample-card-item {
+    border-left: 5px solid #6366f1 !important;
+    transition: all 0.2s ease;
+}
+
+.sample-card-item:hover {
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.06) !important;
+}
+
+.sample-delivered-card {
+    border-left: 5px solid #10b981 !important;
+    background-color: #f8fafc !important;
+}
+
+/* BB Badge Stato Campioni */
+.badge-sample-pending {
+    background-color: #e0e7ff;
+    color: #4338ca;
+    font-size: 0.75rem;
+    font-weight: 600;
+}
+
+.badge-sample-done {
+    background-color: #d1fae5;
+    color: #065f46;
+    font-size: 0.75rem;
+    font-weight: 600;
+}
+
+/* BB Bottoni e Barra Azioni Monoriga per Campioni */
+.sample-card-item .action-buttons {
+    display: flex !important;
+    flex-direction: row !important;
+    justify-content: space-between !important;
+    align-items: center !important;
+    flex-wrap: nowrap !important;
+    gap: 6px !important;
+    width: 100% !important;
+    margin-top: 12px !important;
+}
+
+.sample-card-item .sample-btn-group-left {
+    display: flex !important;
+    align-items: center !important;
+    gap: 5px !important;
+    flex-shrink: 0 !important;
+}
+
+.sample-card-item .sample-pills-group {
+    display: flex !important;
+    align-items: center !important;
+    gap: 4px !important;
+    flex-shrink: 0 !important;
+}
+
+/* Bottone Consegnato Compatto Monoriga */
+.btn-sample-deliver {
+    height: 36px !important;
+    padding: 0 10px !important;
+    font-size: 0.72rem !important;
+    font-weight: 700 !important;
+    letter-spacing: 0.3px !important;
+    text-transform: uppercase !important;
+    border-radius: 9px !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    gap: 4px !important;
+    white-space: nowrap !important;
+    flex-shrink: 0 !important;
+    border: none !important;
+    color: white !important;
+    background-color: #059669 !important;
+    box-shadow: 0 1px 3px rgba(5, 150, 105, 0.2) !important;
+    transition: all 0.2s ease !important;
+}
+
+.btn-sample-deliver:hover {
+    background-color: #047857 !important;
+}
+
+.btn-sample-deliver.disabled {
+    background-color: transparent !important;
+    border: 1.5px solid #10b981 !important;
+    color: #065f46 !important;
+    box-shadow: none !important;
+}
+
+/* Bottone Elimina Compatto Monoriga */
+.btn-sample-delete {
+    width: 36px !important;
+    height: 36px !important;
+    min-width: 36px !important;
+    padding: 0 !important;
+    border-radius: 9px !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    background-color: #ef4444 !important;
+    border: none !important;
+    color: white !important;
+    flex-shrink: 0 !important;
+    box-shadow: 0 1px 3px rgba(239, 68, 68, 0.2) !important;
+    transition: all 0.2s ease !important;
+}
+
+.btn-sample-delete:hover {
+    background-color: #dc2626 !important;
+}
+
+/* Adattamento Pillole (Sposta, WhatsApp, Mappe) dentro Card Campioni */
+.sample-card-item .btn-action-pill {
+    width: 36px !important;
+    height: 36px !important;
+    min-width: 36px !important;
+    border-radius: 9px !important;
+    padding: 0 !important;
+    flex-shrink: 0 !important;
+}
+
+.sample-card-item .btn-action-pill i,
+.sample-card-item .btn-action-pill svg {
+    width: 17px !important;
+    height: 17px !important;
+}
+
+/* BB Empty State Card Uniforme per Tutte le Liste */
+.day-empty-card {
+    background: #ffffff !important;
+    border-radius: 18px !important;
+    border: 1.5px dashed #cbd5e1 !important;
+    padding: 48px 24px !important;
+    text-align: center !important;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.02) !important;
+    margin-bottom: 20px !important;
+    width: 100% !important;
+}
+
+.day-empty-icon {
+    width: 56px !important;
+    height: 56px !important;
+    margin: 0 auto 16px !important;
+    border-radius: 50% !important;
+    background: #f8fafc !important;
+    border: 1px solid #e2e8f0 !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    color: #94a3b8 !important;
+}
+
+.day-empty-icon svg,
+.day-empty-icon i {
+    width: 26px !important;
+    height: 26px !important;
+}
+
+.day-empty-title {
+    font-size: 1.05rem !important;
+    font-weight: 700 !important;
+    color: #334155 !important;
+    margin-bottom: 6px !important;
+}
+
+.day-empty-desc {
+    font-size: 0.88rem !important;
+    color: #94a3b8 !important;
+    margin: 0 !important;
 }

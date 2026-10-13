@@ -81,9 +81,16 @@ document.addEventListener('DOMContentLoaded', async () => {
         const right = document.createElement('div');
         right.className = 'visit-right';
 
+        const isSample = (v.note && v.note.includes('[Campioni]')) || (v.ora_visita && v.ora_visita.startsWith('00:00'));
         const timeBadge = document.createElement('div');
         timeBadge.className = 'visit-time-badge';
-        timeBadge.textContent = ora;
+        if (isSample) {
+            timeBadge.style.fontSize = '0.75rem';
+            timeBadge.style.color = '#6366f1';
+            timeBadge.textContent = 'CAMPIONI';
+        } else {
+            timeBadge.textContent = ora;
+        }
 
         right.appendChild(timeBadge);
 

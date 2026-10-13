@@ -65,9 +65,6 @@ async function processSyncQueue() {
 
     _isSyncing = true;
 
-    // BB: Ordiniamo la coda per garantire che i Medici vengano creati prima delle Visite
-    // DD: 'medici' (INSERT) deve venire prima di 'visite' (INSERT)
-    // DD: Usiamo il timestamp per mantenere l'ordine cronologico delle altre operazioni
     queue.sort((a, b) => {
         const order = { 'medici': 1, 'tasks': 2, 'visite': 3 };
         const orderA = order[a.table] || 4;
@@ -77,21 +74,14 @@ async function processSyncQueue() {
     });
 
     console.log(`🚀 Sincronizzazione Di ${queue.length} Elementi Ordinati...`);
+    updateNetworkLED('syncing');
 
-    updateNetworkLED('syncing'); // Accende LED Blu
-
-    // FONDAMENTALE: Diamo 1.5 secondi a Supabase per ripristinare il token Auth dopo il ritorno online
     await new Promise(resolve => setTimeout(resolve, 2000));
 
     const db = await initIndexedDB();
 
-    // BB: Tracciamento operazioni sincronizzate per notifica finale
-    let counters = {
-        visiteScheduled: 0,
-        visiteWalkin: 0,
-        tasks: 0,
-        altri: 0
-    };
+    let counters = { visiteScheduled: 0, visiteWalkin: 0, tasks: 0, altri: 0 };
+    let _hadErrors = false; // BB: Traccia Se Almeno Un Elemento Ha Fallito La Sync
 
     for (const item of queue) {
         try {
@@ -115,27 +105,20 @@ async function processSyncQueue() {
             const { error } = await query;
 
             if (error) {
-                console.error(`❌ Sync Fallita Per ${item.table}:`, error);
-                // In caso di errore spegniamo il LED (evita l'effetto loop) e interrompiamo.
-                // L'elemento rimane in coda per il prossimo tentativo.
-                _isSyncing = false;
-                updateNetworkLED('online');
-                return;
+                // CC ERRORE: Non Blocca Il Loop — L'Elemento Resta In Coda Per Il Prossimo Tentativo
+                console.error(`❌ Sync Fallita Per ${item.table} (ID: ${item.id}):`, error);
+                _hadErrors = true;
+                continue;
             }
 
-            // ✅ SUCCESSO: Elimina SOLO questo elemento dalla coda di IndexedDB
+            // CC: SUCCESSO: Rimuoviamo Solo Questo Elemento Dalla Coda
             await new Promise(res => {
                 const req = db.transaction(QUEUE_STORE, 'readwrite').objectStore(QUEUE_STORE).delete(item.id);
                 req.onsuccess = () => res();
             });
 
-            // ✅ SUCCESSO: Incrementa il contatore specifico (inserisci questo subito dopo console.log)
             if (item.table === 'visite') {
-                if (item.payload && item.payload.is_walkin_done === true) {
-                    counters.visiteWalkin++;
-                } else {
-                    counters.visiteScheduled++;
-                }
+                item.payload?.is_walkin_done === true ? counters.visiteWalkin++ : counters.visiteScheduled++;
             } else if (item.table === 'tasks') {
                 counters.tasks++;
             } else {
@@ -145,16 +128,20 @@ async function processSyncQueue() {
             console.log(`✅ Sincronizzato ${op} Per ${item.table}`);
 
         } catch (err) {
-            console.error("Errore Critico Durante La Sincronizzazione:", err);
-            _isSyncing = false;
-            updateNetworkLED('online');
-            return;
+            // CC: Errore Critico Sul Singolo Item — Logga E Continua Con Il Prossimo
+            console.error("Errore Critico Su Item Di Sincronizzazione:", err);
+            _hadErrors = true;
+            continue;
         }
     }
 
-    console.log("✅ Sincronizzazione Completata Con Successo!");
+    _isSyncing = false;
+    updateNetworkLED('online');
 
-    // BB: Invio Notifica Di Avvenuta Sincronizzazione
+    if (_hadErrors) {
+        console.warn('⚠️ Sync Parziale: Alcuni Elementi Verranno Ritentati Al Prossimo Collegamento.');
+    }
+
     const totalSynced = Object.values(counters).reduce((a, b) => a + b, 0);
 
     if (totalSynced > 0) {
@@ -171,16 +158,11 @@ async function processSyncQueue() {
         }
     }
 
-    _isSyncing = false;
-    updateNetworkLED('online'); // Torna LED Verde
-
-    // Ricarichiamo i dati a schermo per allinearli al Server
     if (typeof appState !== 'undefined') {
         appState.calendarNeedsRefresh = true;
         appState.clientsNeedsRefresh = true;
         appState.tasksNeedsRefresh = true;
 
-        // Aggiorna visivamente la pagina in cui ci troviamo
         if (document.getElementById('calendar-view').classList.contains('active')) {
             await loadMonthDataFromSupabase(currentDate);
         } else if (document.getElementById('clients-view').classList.contains('active')) {

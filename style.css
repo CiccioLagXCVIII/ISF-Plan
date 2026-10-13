@@ -281,6 +281,100 @@ input[type="time"]:valid {
     border-left: 4px solid var(--primary) !important;
 }
 
+.ts-wrapper.form-select {
+    border: none !important;
+    padding: 0 !important;
+}
+
+/* BB Indirizzi Multipli Dinamici */
+#new-address-container,
+#edit-address-container {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.address-row {
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+    width: 100%;
+}
+
+.address-row .address-city-input {
+    flex: 0 0 38%;
+}
+
+.address-row .address-input {
+    flex: 1;
+    min-width: 0;
+}
+
+.btn-address {
+    border-radius: 10px !important;
+    height: 38px;
+    width: 38px;
+    padding: 0 !important;
+    font-weight: 700;
+    font-size: 1rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    transition: all 0.2s ease;
+    background-color: transparent;
+}
+
+.btn-address:active {
+    transform: scale(0.95) !important;
+}
+
+.btn-address-add {
+    border: 1.5px solid var(--primary-dark) !important;
+    color: var(--primary-dark) !important;
+}
+
+.btn-address-add:hover {
+    box-shadow: 0 0 0 3px rgba(248, 165, 181, 0.35);
+    transform: translateY(-1px);
+}
+
+.btn-address-remove {
+    border: 1.5px solid #ef4444 !important;
+    color: #ef4444 !important;
+}
+
+.btn-address-remove:hover {
+    box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.2);
+    transform: translateY(-1px);
+}
+
+.btn-address.btn-address-add:disabled {
+    opacity: 0.35;
+    cursor: not-allowed;
+    pointer-events: none;
+}
+
+/* BB Bottone Aggiungi Fascia Oraria */
+.btn-add-slot {
+    background: transparent;
+    border: none;
+    color: var(--primary-dark);
+    font-size: 0.82rem;
+    font-weight: 600;
+    padding: 4px 2px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    -webkit-tap-highlight-color: transparent;
+}
+
+.btn-add-slot:active {
+    opacity: 0.6;
+}
+
 /* AA SEZIONE 4: VISTA CALENDARIO */
 
 /* BB Struttura Calendario */
@@ -436,6 +530,11 @@ input[type="time"]:valid {
     margin-right: auto;
     border: none;
     box-shadow: var(--shadow-md);
+    overflow: visible !important;
+}
+
+.card.border-custom-glow.overflow-hidden {
+    overflow: visible !important;
 }
 
 #day-view .form-control,
@@ -707,19 +806,20 @@ input[type="time"]:valid {
 /* BB Azioni Card */
 .card-actions {
     display: flex;
-    gap: 10px;
+    flex-direction: column;
+    gap: 8px;
     margin-top: 20px;
 }
 
 .btn-small {
-    padding: 10px 5px;
+    padding: 12px;
     font-size: 0.75rem;
-    border-radius: 10px;
+    border-radius: 12px;
     font-weight: 800;
     text-transform: uppercase;
+    letter-spacing: 0.4px;
     border: none;
     cursor: pointer;
-    flex: 1;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -732,20 +832,57 @@ input[type="time"]:valid {
     filter: brightness(1.1);
 }
 
+/* BB Tasto Primario Full Width */
 .btn-edit {
     background-color: #2563eb;
+    width: 100%;
 }
 
-.btn-undo {
-    background-color: #64748b;
+/* BB Riga Pills */
+.card-actions-pills {
+    display: flex;
+    gap: 8px;
+}
+
+.btn-pill-small {
+    flex: 1;
+    padding: 11px 6px;
+    border-radius: 50px;
+    font-size: 0.7rem;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 5px;
+    border: 1.5px solid;
+    transition: filter 0.2s;
+    background: transparent;
+}
+
+.btn-pill-small:hover {
+    filter: brightness(0.95);
+}
+
+.btn-storico {
+    background: #ede9fe !important;
+    color: #6d28d9 !important;
+    border-color: #ddd6fe;
+}
+
+.btn-done,
+.btn-phone-call {
+    background: #ecfdf5 !important;
+    color: #047857 !important;
+    border-color: #a7f3d0;
 }
 
 .btn-delete {
-    background-color: #dc2626;
-}
-
-.btn-done {
-    background-color: #059669;
+    background: #fff1f2 !important;
+    color: #e11d48 !important;
+    border-color: #fecdd3;
 }
 
 /* BB Filtri e Ricerca Anagrafica */
@@ -838,6 +975,47 @@ input[type="time"]:valid {
 #filter-chevron {
     transition: transform 0.3s ease;
     width: 16px;
+}
+
+/* BB Filter Card — wrapper unificato toggle + pannello */
+.filter-card-wrapper {
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 16px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+    overflow: hidden;
+}
+
+.filter-card-header {
+    width: 100%;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 14px 16px;
+    border: none;
+    background: transparent;
+    cursor: pointer;
+    color: #334155;
+    font-size: 0.9rem;
+    text-align: left;
+    transition: background 0.15s ease;
+    -webkit-tap-highlight-color: transparent;
+}
+
+.filter-card-header:active {
+    background: #f8fafc;
+}
+
+.filter-card-body {
+    padding: 4px 16px 16px;
+    border-top: 1px solid #f1f5f9;
+    /* Animazione apertura */
+    animation: slideDown 0.2s ease-out;
+}
+
+#filter-chevron {
+    transition: transform 0.3s ease;
+    flex-shrink: 0;
 }
 
 /* AA SEZIONE 7: VISTA IMPOSTAZIONI */
@@ -1408,7 +1586,24 @@ input[type="time"]:valid {
 
 /* AA SEZIONE 12: UTILITY */
 
-/* BB Classi Utility */
+/* BB Spaziatura Globale Per Bottom Nav */
+body {
+    padding-bottom: calc(70px + env(safe-area-inset-bottom));
+}
+
+.view {
+    padding-bottom: 20px;
+}
+
+/* BB Effetto Pressione Su Elementi Interattivi */
+.btn:active,
+.appointment-item:active,
+.client-card:active,
+.task-card:active {
+    transform: scale(0.98) !important;
+    transition: transform 0.1s ease;
+}
+
 .display-none {
     display: none !important;
 }
@@ -1423,6 +1618,72 @@ input[type="time"]:valid {
     animation: floatIn 0.6s ease-out;
 }
 
+/* BB Keyframes Animazioni */
+
+/* CC Ingresso Con Scala (Quick Menu) */
+@keyframes scaleUp {
+    from {
+        opacity: 0;
+        transform: scale(0.9) translateY(20px);
+    }
+
+    to {
+        opacity: 1;
+        transform: scale(1) translateY(0);
+    }
+}
+
+/* CC Ingresso Dal Basso (Card Report) */
+@keyframes slideUpFade {
+    from {
+        opacity: 0;
+        transform: translateY(12px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* CC Discesa (Slot Orari Walk-in) */
+@keyframes slideDown {
+    from {
+        opacity: 0;
+        transform: translateY(-10px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* CC Pulsazione LED Di Rete */
+@keyframes pulse-led {
+    from {
+        opacity: 0.4;
+    }
+
+    to {
+        opacity: 1;
+    }
+}
+
+/* CC Pulsazione Badge LIVE Report */
+@keyframes pulse-badge {
+
+    0%,
+    100% {
+        opacity: 1;
+    }
+
+    50% {
+        opacity: 0.5;
+    }
+}
+
+/* CC Ingresso Con Leggera Discesa (Card, Task, Anagrafica) */
 @keyframes floatIn {
     from {
         opacity: 0;
@@ -1461,12 +1722,6 @@ input[type="time"]:valid {
 /* CC MD: Tablet (>= 768px) */
 @media (min-width: 768px) {
 
-    /* Vista Giorno: Mostra sempre entrambe le colonne */
-    #col-scheduled,
-    #col-walkins {
-        display: block !important;
-    }
-
     /* Navbar: Ritorna icone + testo */
     .nav-btn-custom span {
         display: inline !important;
@@ -1490,12 +1745,19 @@ input[type="time"]:valid {
         display: none !important;
     }
 
+    .filter-card-wrapper {
+        background: transparent !important;
+        border: none !important;
+        box-shadow: none !important;
+        border-radius: 0 !important;
+        overflow: visible;
+        margin-top: 0 !important;
+    }
+
     #mobile-filter-panel {
         display: block !important;
-        position: static;
-        box-shadow: none !important;
-        margin-top: 0 !important;
-        background: transparent !important;
+        border-top: none !important;
+        padding: 0 !important;
     }
 }
 
@@ -1510,19 +1772,6 @@ input[type="time"]:valid {
 
 /* CC XS DOWN: Mobile (<= 767.98px) */
 @media (max-width: 767.98px) {
-
-    #col-scheduled,
-    #col-walkins {
-        display: none;
-    }
-
-    .show-scheduled #col-scheduled {
-        display: block;
-    }
-
-    .show-walkins #col-walkins {
-        display: block;
-    }
 
     .nav-btn-custom span {
         display: none !important;

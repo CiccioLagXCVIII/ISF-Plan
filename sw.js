@@ -1,4 +1,4 @@
-const CACHE_NAME = 'ISFplan-v1.6.4';
+const CACHE_NAME = 'ISFplan-v1.6.9.4';
 
 const ASSETS_TO_CACHE = [
     './',
@@ -16,25 +16,36 @@ const ASSETS_TO_CACHE = [
     './pwaManager.js',
     './script.js',
     './scriptProFeatures.js',
+    './dropChampFeature.js',
+    './exportFunction.js',
     './manifest.json',
     './icon/siteIcon.png',
     './icon/siteLogo.png',
     'https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css',
-    'https://cdn.jsdelivr.net/npm/dayjs@1/dayjs.min.js'
+    'https://cdn.jsdelivr.net/npm/dayjs@1/dayjs.min.js',
+    'https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js'
 ];
 
 self.addEventListener('install', (event) => {
-    self.skipWaiting();
+    // self.skipWaiting();
     event.waitUntil(
         caches.open(CACHE_NAME).then((cache) => {
             // Usiamo map + promise per evitare che un singolo fallimento blocchi tutto
             return Promise.all(
                 ASSETS_TO_CACHE.map(url => {
-                    return cache.add(url).catch(err => console.warn('Non cacheable:', url, err));
+                    return cache.add(url).catch(err => console.warn('Non Cacheable:', url, err));
                 })
             );
         })
     );
+});
+
+// BB: Ricezione Messaggio Dal Client Per Attivazione Controllata
+self.addEventListener('message', (event) => {
+    // CC: Attiviamo il nuovo SW solo su esplicita richiesta, dopo consenso utente
+    if (event.data === 'SKIP_WAITING') {
+        self.skipWaiting();
+    }
 });
 
 self.addEventListener('activate', (event) => {

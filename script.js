@@ -19,6 +19,10 @@ let currentTab = "scheduled";       // Tab attivo nella vista giorno (Orario/Lib
 let modalActionContext = null;      // Contesto dell'azione (es. 'walkin-done')
 let modalTargetId = null;           // ID dell'oggetto target della modifica
 let modalTargetOldDate = null;      // Data originale prima di uno spostamento
+let modalTargetVisitId = null;      // ID Univoco DB Della Visita Da Modificare
+// BB Istanze TomSelect (Dropdown Ricercabili)
+let tsExistingClient = null;        // Istanza per il select medico in Day View
+let tsTaskMedico = null;            // Istanza per il select medico nel modal Task
 
 // BB Flag Di Controllo
 const appState = {
@@ -26,6 +30,11 @@ const appState = {
     clientsNeedsRefresh: true,
     tasksNeedsRefresh: true
 };
+
+// BB Soglie Priorità Visita (Giorni Dall'Ultima Visita)
+// Usate Sia Dai Colori Delle Card (renderClients) Sia Dall'Export
+const VISIT_THRESHOLD_HIGH = 45;    // >= 45 giorni → Alta (bordo rosso)
+const VISIT_THRESHOLD_MEDIUM = 30;  // >= 30 giorni → Media (bordo giallo)
 
 // ==========================================================================
 // AA 2: INIZIALIZZAZIONE E GESTIONE VISTE (SPA LOGIC)
@@ -75,6 +84,13 @@ function initApp() {
         else if (action === 'edit-client') openEditClient(id);
         else if (action === 'move-visit') openEditVisit(id);
         else if (action === 'add-visit') openAddVisitModal(id);
+        else if (action === 'storico-client') openStorico(id);
+        else if (action === 'call-client') {
+            if (!client.phone) return openAlert('Nessun Numero Registrato Per Questo Medico');
+            let phone = client.phone.replace(/\D/g, '');
+            if (!phone.startsWith('39')) phone = '39' + phone;
+            window.location.href = `tel:+${phone}`;
+        }
     });
 }
 
@@ -143,6 +159,9 @@ function showView(viewId) {
         btnCli.classList.remove('active');
         btnTsk.classList.remove('active');
     }
+
+    // CC Bottone Export: Visibile Solo Nella Vista Medici
+    if (typeof toggleExportButton === 'function') toggleExportButton(viewId);
 
     // CC Refresh icone Lucide dopo ogni cambio vista
     lucide.createIcons();
@@ -320,6 +339,7 @@ async function loadMonthDataFromSupabase(targetDate) {
 
         clientsList = (medici || []).map(m => ({
             id: m.id, name: m.nome, city: m.citta, address: m.indirizzo || '',
+            indirizzi: parseIndirizzi(m.indirizzi, m.indirizzo, m.citta),
             phone: m.cellulare || '', specialization: m.specializzazione,
             giorni_liberi: m.giorni_liberi,
             lastVisit: m.ultima_visita_passata,
@@ -397,6 +417,7 @@ async function loadAllDataFromSupabase() {
                 name: m.nome,
                 city: m.citta,
                 address: m.indirizzo || '',
+                indirizzi: parseIndirizzi(m.indirizzi, m.indirizzo, m.citta),
                 phone: m.cellulare || '',
                 specialization: m.specializzazione,
                 giorni_liberi: m.giorni_liberi,
@@ -433,20 +454,32 @@ function processVisitsForCalendar() {
     allVisits.forEach(v => {
         const dateISO = v.data_visita;
         if (!dateISO) return;
-        if (!appointments[dateISO]) appointments[dateISO] = { scheduled: [] };
+        if (!appointments[dateISO]) appointments[dateISO] = { scheduled: [], samples: [] };
 
+        const medicoInAnagrafica = clientsList.find(c => c.id === v.medico_id);
         const medicoInfo = v.medici || { nome: "Eliminato", citta: "N.D.", indirizzo: "" };
-        appointments[dateISO].scheduled.push({
+        const isSample = typeof isSampleVisit === 'function' ? isSampleVisit(v) : (v.note && v.note.includes('[Campioni]'));
+
+        const item = {
             id: v.medico_id,
             name: medicoInfo.nome,
             city: medicoInfo.citta,
             address: medicoInfo.indirizzo,
+            indirizzi: parseIndirizzi(medicoInfo.indirizzi, medicoInfo.indirizzo, medicoInfo.citta),
             phone: medicoInfo.cellulare || "",
             time: v.ora_visita ? v.ora_visita.substring(0, 5) : "00:00",
+            specialization: medicoInAnagrafica?.specialization || "",
             note: v.note || "",
             isWalkinDone: v.is_walkin_done || false,
+            isSample: isSample,
             dbId: v.id
-        });
+        };
+
+        if (isSample) {
+            appointments[dateISO].samples.push(item);
+        } else {
+            appointments[dateISO].scheduled.push(item);
+        }
     });
 
     clientsList.forEach(m => {
@@ -503,7 +536,7 @@ function renderCalendar() {
         }
 
         // CC Indicatori visite (Badge)
-        let count = appointments[dateISO]?.scheduled?.length || 0;
+        let count = (appointments[dateISO]?.scheduled?.length || 0) + (appointments[dateISO]?.samples?.length || 0);
         if (count > 0) {
             const badge = document.createElement('span');
             badge.className = 'badge'; badge.innerText = count;
@@ -532,13 +565,8 @@ async function openDayView(dateISO) {
     const titolo = `Visite del ${dataBase}`.replace(/\b\w/g, l => l.toUpperCase());
     document.getElementById('selected-date-title').innerText = titolo;
 
-    // CC Adattamento responsive
-    if (window.innerWidth <= 768) {
-        toggleMobileListView('scheduled');
-    } else {
-        document.getElementById('col-scheduled').style.display = 'block';
-        document.getElementById('col-walkins').style.display = 'block';
-    }
+    // CC Imposta vista lista di default su Orario (sia PC che Mobile)
+    toggleListView('scheduled');
 
     // Controllo Che I Medici Siano Caricati Da Supabase O Da Cache
     if (clientsList.length === 0) {
@@ -559,51 +587,99 @@ async function openDayView(dateISO) {
 function setTab(tabName) {
     currentTab = tabName;
 
-    document.getElementById('tab-scheduled').classList.toggle('active', tabName === 'scheduled');
-    document.getElementById('tab-walkin').classList.toggle('active', tabName === 'walkin');
+    const tabSched = document.getElementById('tab-scheduled');
+    const tabWalk = document.getElementById('tab-walkin');
+    const tabSamp = document.getElementById('tab-samples');
+    const timeGroup = document.getElementById('time-group');
+    const daysGroup = document.getElementById('days-group');
+    const samplesGroup = document.getElementById('samples-group');
+    const submitBtn = document.getElementById('btn-submit-appointment');
+
+    if (tabSched) tabSched.classList.toggle('active', tabName === 'scheduled');
+    if (tabWalk) tabWalk.classList.toggle('active', tabName === 'walkin');
+    if (tabSamp) tabSamp.classList.toggle('active', tabName === 'samples');
 
     if (tabName === 'scheduled') {
-        document.getElementById('time-group').classList.remove('display-none');
-        document.getElementById('days-group').classList.add('display-none');
-    } else {
-        document.getElementById('time-group').classList.add('display-none');
-        document.getElementById('days-group').classList.remove('display-none');
+        if (timeGroup) timeGroup.classList.remove('display-none');
+        if (daysGroup) daysGroup.classList.add('display-none');
+        if (samplesGroup) samplesGroup.classList.add('display-none');
+        if (submitBtn) submitBtn.textContent = 'Aggiungi Appuntamento';
+    } else if (tabName === 'walkin') {
+        if (timeGroup) timeGroup.classList.add('display-none');
+        if (daysGroup) daysGroup.classList.remove('display-none');
+        if (samplesGroup) samplesGroup.classList.add('display-none');
+        if (submitBtn) submitBtn.textContent = 'Salva Giorni Di Ricevimento';
+    } else if (tabName === 'samples') {
+        if (timeGroup) timeGroup.classList.add('display-none');
+        if (daysGroup) daysGroup.classList.add('display-none');
+        if (samplesGroup) samplesGroup.classList.remove('display-none');
+        if (submitBtn) submitBtn.textContent = 'Aggiungi Rilascio Campioni';
     }
 
     lucide.createIcons();
 }
 
-function toggleMobileListView(view) {
-    const container = document.getElementById('day-view'); // O il genitore che contiene le due colonne
+function toggleListView(view) {
+    const container = document.getElementById('day-view');
     const btnScheduled = document.getElementById('btn-show-scheduled');
     const btnWalkins = document.getElementById('btn-show-walkins');
+    const btnSamples = document.getElementById('btn-show-samples');
 
     // Rimuoviamo le classi di stato precedenti
-    container.classList.remove('show-scheduled', 'show-walkins');
-    btnScheduled.classList.remove('active');
-    btnWalkins.classList.remove('active');
+    container.classList.remove('show-scheduled', 'show-samples', 'show-walkins');
+    if (btnScheduled) btnScheduled.classList.remove('active');
+    if (btnWalkins) btnWalkins.classList.remove('active');
+    if (btnSamples) btnSamples.classList.remove('active');
 
     // Aggiungiamo la classe corretta
     if (view === 'scheduled') {
         container.classList.add('show-scheduled');
-        btnScheduled.classList.add('active');
-    } else {
+        if (btnScheduled) btnScheduled.classList.add('active');
+    } else if (view === 'walkins') {
         container.classList.add('show-walkins');
-        btnWalkins.classList.add('active');
+        if (btnWalkins) btnWalkins.classList.add('active');
+    } else if (view === 'samples') {
+        container.classList.add('show-samples');
+        if (btnSamples) btnSamples.classList.add('active');
     }
+
+    if (typeof lucide !== 'undefined') lucide.createIcons();
+}
+
+function toggleMobileListView(view) {
+    toggleListView(view);
+}
+
+// BB Helper Card Empty State per Liste Giornaliere
+function createDayEmptyState(iconName, title, subtitle) {
+    const emptyLi = document.createElement('li');
+    emptyLi.className = 'list-unstyled w-100';
+    emptyLi.innerHTML = `
+        <div class="day-empty-card">
+            <div class="day-empty-icon">
+                <i data-lucide="${iconName}"></i>
+            </div>
+            <div class="day-empty-title">${escapeHTML(title)}</div>
+            <div class="day-empty-desc">${escapeHTML(subtitle)}</div>
+        </div>`;
+    return emptyLi;
 }
 
 // BB Rendering Liste
 function renderDayAppointments() {
     const sUl = document.getElementById('scheduled-ul');
     const wUl = document.getElementById('walkins-ul');
-    sUl.innerHTML = ''; wUl.innerHTML = '';
+    const sampUl = document.getElementById('samples-ul');
+    if (sUl) sUl.innerHTML = '';
+    if (wUl) wUl.innerHTML = '';
+    if (sampUl) sampUl.innerHTML = '';
 
     let scheduled = (appointments[selectedDateISO]?.scheduled || []).sort((a, b) => a.time.localeCompare(b.time));
     let visitatiOggi = [];
+    window._navData = {};
 
     // DD: Helper interna per evitare ripetizione di codice per i pulsanti Phone, WA e Maps
-    const generatePillButtons = (appOrWalkin) => {
+    const generatePillButtons = (appOrWalkin, { showMove = false } = {}) => {
         const address = (appOrWalkin.address || '').trim();
         const city = (appOrWalkin.city || '').trim();
         const mapQuery = (address && city) ? `${address}, ${city}` : (address || city);
@@ -611,108 +687,154 @@ function renderDayAppointments() {
         let cleanPhone = appOrWalkin.phone ? appOrWalkin.phone.replace(/\D/g, '') : '';
         if (cleanPhone && !cleanPhone.startsWith('39')) cleanPhone = '39' + cleanPhone;
 
-        const mapBtn = mapQuery
-            ? `<button onclick="openNavigator('${encodeURIComponent(mapQuery)}')" class="btn-action-pill btn-map"><i data-lucide="car"></i></button>`
-            : `<button class="btn-action-pill btn-map opacity-50" onclick="openAlert('Indirizzo Mancante')"><i data-lucide="car"></i></button>`;
+        // DOPO
+        const navKey = `nav_${appOrWalkin.dbId || appOrWalkin.id}`;
+        const indirizziList = appOrWalkin.indirizzi?.length > 0
+            ? appOrWalkin.indirizzi
+            : (address ? [{ indirizzo: address, citta: city }] : []);
 
-        const phoneBtn = cleanPhone
-            ? `<a href="tel:+${cleanPhone}" class="btn-action-pill btn-phone"><i data-lucide="phone"></i></a>`
-            : `<button class="btn-action-pill btn-phone opacity-50" onclick="openAlert('Cellulare Mancante')"><i data-lucide="phone"></i></button>`;
+        window._navData[navKey] = { indirizzi: indirizziList, city };
+
+        const mapBtn = indirizziList.length > 0
+            ? `<button onclick="openAddressPickerOrNavigate('${navKey}')" class="btn-action-pill btn-map"><i data-lucide="car"></i></button>`
+            : `<button class="btn-action-pill btn-map opacity-50" onclick="openAlert('Indirizzo Mancante')"><i data-lucide="car"></i></button>`;
 
         const waBtn = cleanPhone
             ? `<a href="https://wa.me/${cleanPhone}" target="_blank" class="btn-action-pill btn-wa"><i data-lucide="message-circle"></i></a>`
             : `<button class="btn-action-pill btn-wa opacity-50" onclick="openAlert('Cellulare Mancante')"><i data-lucide="message-circle"></i></button>`;
 
-        return `${phoneBtn} ${waBtn} ${mapBtn}`;
+        const moveBtn = showMove && appOrWalkin.dbId
+            ? `<button onclick="openEditVisitFromDay('${escapeHTML(appOrWalkin.id)}', '${escapeHTML(String(appOrWalkin.dbId))}', '${escapeHTML(appOrWalkin.name)}')" class="btn-action-pill btn-map"><i data-lucide="calendar-range"></i></button>`
+            : '';
+
+        const phoneBtn = cleanPhone
+            ? `<a href="tel:+${cleanPhone}" class="btn-action-pill btn-phone"><i data-lucide="phone"></i></a>`
+            : `<button class="btn-action-pill btn-phone opacity-50" onclick="openAlert('Cellulare Mancante')"><i data-lucide="phone"></i></button>`;
+
+        return showMove
+            ? `${moveBtn} ${waBtn} ${mapBtn}`
+            : `${phoneBtn} ${waBtn} ${mapBtn}`;
     };
 
     // CC Rendering Scheduled
-    scheduled.forEach((app) => {
-        visitatiOggi.push(app.id);
-        const actionPillsHtml = generatePillButtons(app);
+    if (scheduled.length === 0) {
+        if (typeof createDayEmptyState === 'function') {
+            sUl.appendChild(createDayEmptyState(
+                'clock',
+                'Nessun Appuntamento',
+                'Nessuna visita con orario prefissato per oggi'
+            ));
+        }
+    } else {
+        scheduled.forEach((app) => {
+            visitatiOggi.push(app.id);
+            const actionPillsHtml = generatePillButtons(app, { showMove: true });
 
-        const li = document.createElement('li');
-        li.className = 'appointment-item shadow-sm';
-        if (app.isWalkinDone) li.classList.add('walkin-moved');
+            const li = document.createElement('li');
+            li.className = 'appointment-item shadow-sm';
+            if (app.isWalkinDone) li.classList.add('walkin-moved');
 
-        li.innerHTML = `
-            <div class="d-flex justify-content-between align-items-center mb-1">
-                <div class="list-info">
-                    <span class="fw-bold text-primary fs-5">${app.time}</span>
-                    <span class="fw-bold ms-2 text-dark fs-5">${escapeHTML(app.name)}</span>
-                    <div class="text-secondary small mt-1"><i data-lucide="map-pin" style="width:12px; height:12px;"></i> ${escapeHTML(app.city)}</div>
+            const spec = app.specialization || "";
+
+            li.innerHTML = `
+                <div class="d-flex justify-content-between align-items-center mb-1">
+                    <div class="list-info">
+                        <span class="fw-bold text-primary fs-5">${app.time}</span>
+                        <span class="fw-bold ms-2 text-dark fs-5">${escapeHTML(app.name)}</span>
+                        ${spec ? `<small class="text-muted fw-normal ms-2">(${escapeHTML(spec)})</small>` : ''}
+                        <div class="text-secondary small mt-1"><i data-lucide="map-pin" style="width:12px; height:12px;"></i> ${escapeHTML(app.city)}</div>
+                    </div>
                 </div>
-            </div>
-            <div class="note-preview" data-visit-id="${app.dbId}" data-note="${app.note ? app.note.replace(/"/g, '&quot;') : ''}" onclick="editNoteFromAttr(this)">
-                <i data-lucide="file-text" style="width:14px; height:14px;" class="me-1"></i> 
-                ${app.note ? escapeHTML(app.note) : 'Aggiungi Note Visita...'}
-            </div>
-            <div class="action-buttons">
-                <button class="btn btn-danger btn-action-main me-2" onclick="deleteApp('${app.dbId}')">
-                    <i data-lucide="trash-2" style="width:14px; height:14px;" class="me-1"></i> Elimina
-                </button>
-                <div class="d-flex gap-1">${actionPillsHtml}</div>
-            </div>`;
-        sUl.appendChild(li);
-    });
+                
+                <div class="note-preview" data-visit-id="${app.dbId}" data-note="${escapeHTML(app.note || '')}" onclick="editNoteFromAttr(this)">
+                    <i data-lucide="file-text" style="width:14px; height:14px;" class="me-1"></i> 
+                    ${app.note ? escapeHTML(app.note) : 'Aggiungi Note Visita...'}
+                </div>
+                <div class="action-buttons">
+                    <button class="btn btn-danger btn-action-main" onclick="deleteApp('${app.dbId}')">
+                        <i data-lucide="trash-2" style="width:14px; height:14px;"></i> Elimina
+                    </button>
+                    <div class="d-flex align-items-center gap-1">${actionPillsHtml}</div>
+                </div>`;
+            sUl.appendChild(li);
+        });
+    }
+
+    // CC Aggiunge anche i medici con consegna campioni a visitatiOggi
+    (appointments[selectedDateISO]?.samples || []).forEach(s => visitatiOggi.push(s.id));
 
     // CC Rendering Walk-in (Filtra solo i disponibili oggi e non ancora visitati)
     // --- LOGICA WALK-IN (LIBERI OGGI) ---
     const dayOfWeek = dayjs(selectedDateISO).day();
+    const walkinsToday = walkinQueue.filter(w => w.availableDays.includes(dayOfWeek) && !visitatiOggi.includes(w.id));
 
-    walkinQueue.filter(w => w.availableDays.includes(dayOfWeek) && !visitatiOggi.includes(w.id)).forEach(w => {
-        const clientFull = clientsList.find(c => c.id === w.id);
-        const mergedData = { ...w, address: clientFull?.address, phone: clientFull?.phone };
-        const actionPillsHtml = generatePillButtons(mergedData);
-
-        let orarioInfoHtml = "";
-        try {
-            // Tentativo di parsing del nuovo formato JSON {"1": ["09:00-12:00", "15:00-18:00"]}
-            const slotsObj = JSON.parse(w.giorni_liberi || "{}");
-
-            // Verifichiamo se esistono fasce orarie per il giorno corrente (dayOfWeek)
-            if (slotsObj[dayOfWeek] && Array.isArray(slotsObj[dayOfWeek]) && slotsObj[dayOfWeek].length > 0) {
-                // Uniamo tutte le fasce orarie disponibili separate da una virgola
-                const fasceTesto = slotsObj[dayOfWeek].join(', ');
-                orarioInfoHtml = `
-                <div class="text-primary small fw-bold mt-1 d-flex align-items-center gap-1">
-                    <i data-lucide="clock" style="width:12px; height:12px;"></i>
-                    <span>Riceve: ${fasceTesto}</span>
-                </div>`;
-            } else if (slotsObj[dayOfWeek] && typeof slotsObj[dayOfWeek] === 'string') {
-                // Caso di transizione: se salvato come stringa singola
-                orarioInfoHtml = `
-                <div class="text-primary small fw-bold mt-1 d-flex align-items-center gap-1">
-                    <i data-lucide="clock" style="width:12px; height:12px;"></i>
-                    <span>Riceve: ${slotsObj[dayOfWeek]}</span>
-                </div>`;
-            } else {
-                orarioInfoHtml = `<div class="text-muted small mt-1 italic">Nessun orario inserito</div>`;
-            }
-        } catch (e) {
-            // Fallback: Se il campo non è JSON (vecchio formato "1,2,3"), mostriamo un messaggio generico
-            orarioInfoHtml = `<div class="text-muted small mt-1">Orario non specificato</div>`;
+    if (walkinsToday.length === 0) {
+        if (typeof createDayEmptyState === 'function') {
+            wUl.appendChild(createDayEmptyState(
+                'coffee',
+                'Nessun Medico Libero',
+                'Nessun medico in anagrafica riceve senza appuntamento oggi'
+            ));
         }
+    } else {
+        walkinsToday.forEach(w => {
+            const clientFull = clientsList.find(c => c.id === w.id);
+            const mergedData = { ...w, address: clientFull?.address, indirizzi: clientFull?.indirizzi || [], phone: clientFull?.phone };
+            const actionPillsHtml = generatePillButtons(mergedData);
 
-        const li = document.createElement('li');
-        li.className = 'appointment-item shadow-sm';
+            let orarioInfoHtml = "";
+            try {
+                const slotsObj = JSON.parse(w.giorni_liberi || "{}");
+                if (slotsObj[dayOfWeek] && Array.isArray(slotsObj[dayOfWeek]) && slotsObj[dayOfWeek].length > 0) {
+                    const fasceTesto = slotsObj[dayOfWeek].join(', ');
+                    orarioInfoHtml = `
+                    <div class="text-primary small fw-bold mt-1 d-flex align-items-center gap-1">
+                        <i data-lucide="clock" style="width:12px; height:12px;"></i>
+                        <span>Riceve: ${fasceTesto}</span>
+                    </div>`;
+                } else if (slotsObj[dayOfWeek] && typeof slotsObj[dayOfWeek] === 'string') {
+                    orarioInfoHtml = `
+                    <div class="text-primary small fw-bold mt-1 d-flex align-items-center gap-1">
+                        <i data-lucide="clock" style="width:12px; height:12px;"></i>
+                        <span>Riceve: ${slotsObj[dayOfWeek]}</span>
+                    </div>`;
+                } else {
+                    orarioInfoHtml = `<div class="text-muted small mt-1 italic">Nessun orario inserito</div>`;
+                }
+            } catch (e) {
+                orarioInfoHtml = `<div class="text-muted small mt-1">Orario non specificato</div>`;
+            }
 
-        li.innerHTML = `
-        <div class="list-info mb-3">
-            <span class="fw-bold text-dark fs-5">${escapeHTML(w.name)}</span>
-            <div class="text-secondary small mt-1">
-                <i data-lucide="map-pin" style="width:12px; height:12px;"></i> ${escapeHTML(w.city)}
+            const li = document.createElement('li');
+            li.className = 'appointment-item shadow-sm';
+
+            li.innerHTML = `
+            <div class="list-info mb-3">
+                <span class="fw-bold text-dark fs-5">${escapeHTML(w.name)}</span>
+                <div class="text-secondary small mt-1">
+                    <i data-lucide="map-pin" style="width:12px; height:12px;"></i> ${escapeHTML(w.city)}
+                </div>
+                ${orarioInfoHtml}
             </div>
-            ${orarioInfoHtml}
-        </div>
-        <div class="action-buttons">
-            <button class="btn btn-success btn-action-main me-2" onclick="markWalkinDone('${w.id}')">
-                <i data-lucide="check-circle" style="width:14px; height:14px;" class="me-1"></i> Visita
-            </button>
-            <div class="d-flex gap-1">${actionPillsHtml}</div>
-        </div>`;
-        wUl.appendChild(li);
-    });
+            <div class="action-buttons">
+                <button class="btn btn-success btn-action-main me-2" onclick="markWalkinDone('${w.id}')">
+                    <i data-lucide="check-circle" style="width:14px; height:14px;" class="me-1"></i> Visita
+                </button>
+                <div class="d-flex align-items-center gap-1">${actionPillsHtml}</div>
+            </div>`;
+            wUl.appendChild(li);
+        });
+    }
+
+    // CC Rendering Campioni
+    if (typeof renderSamplesAppointments === 'function') {
+        renderSamplesAppointments(appointments[selectedDateISO]?.samples || [], generatePillButtons);
+    }
+
+    // CC Aggiornamento Badge Contatori Mobile
+    if (typeof updateMobileListBadges === 'function') {
+        updateMobileListBadges();
+    }
 
     lucide.createIcons();
 }
@@ -762,10 +884,28 @@ async function addAppointment() {
     if (isNew) {
         // CC Creazione Nuovo Medico Tramite Acquisizione Dati Dal Form
         const nome = toTitleCase(document.getElementById('new-client-name').value.trim());
-        const citta = toTitleCase(document.getElementById('new-client-city').value.trim());
-        const indirizzo = toTitleCase(document.getElementById('new-client-address').value.trim());
+
+        const addressRows = [...document.querySelectorAll('#new-address-container .address-row')];
+        const rawLocations = addressRows.map(row => {
+            const rowCity = toTitleCase(row.querySelector('.address-city-input')?.value.trim() || '');
+            const rowAddr = toTitleCase(row.querySelector('.address-input')?.value.trim() || '');
+            return { indirizzo: rowAddr, citta: rowCity };
+        }).filter(loc => loc.indirizzo || loc.citta);
+
+        const primaryCity = toTitleCase(document.getElementById('new-client-city')?.value.trim() || rawLocations[0]?.citta || '');
+        const primaryAddr = rawLocations[0]?.indirizzo || '';
+
+        const structuredLocations = rawLocations.map(loc => ({
+            indirizzo: loc.indirizzo,
+            citta: loc.citta || primaryCity
+        }));
+
         const cellulare = document.getElementById('new-client-phone').value.trim();
         let spec = document.getElementById('new-client-spec').value;
+
+        const citta = primaryCity;
+        const indirizzo = primaryAddr;
+        const indirizziJson = JSON.stringify(structuredLocations);
 
         if (spec === 'NEW_SPEC') spec = document.getElementById('custom-spec-input').value.trim();
         if (!nome || !spec) return openAlert("Nome E Specializzazione Sono Obbligatori.");
@@ -780,6 +920,7 @@ async function addAppointment() {
             nome,
             citta,
             indirizzo,
+            indirizzi: indirizziJson,
             cellulare,
             specializzazione: spec
         };
@@ -796,13 +937,14 @@ async function addAppointment() {
                 city: citta,
                 specialization: spec,
                 address: indirizzo,
+                indirizzi: structuredLocations,
                 phone: cellulare
             });
             updateExistingClientsSelect();
         }
     } else {
         // CC Caso Medico Esistente: Recupero ID Dal Select
-        clientId = document.getElementById('existing-client-select').value;
+        clientId = tsExistingClient ? tsExistingClient.getValue() : document.getElementById('existing-client-select').value;
         if (!clientId) return openAlert("Seleziona Un Medico Dalla Lista");
 
         // Prelevo Dati Da Lista In RAM
@@ -826,7 +968,7 @@ async function addAppointment() {
 
         if (!navigator.onLine) {
             // DD Offline: Inserisco Manualmente L'Appuntamento Nella Vista
-            if (!appointments[selectedDateISO]) appointments[selectedDateISO] = { scheduled: [] };
+            if (!appointments[selectedDateISO]) appointments[selectedDateISO] = { scheduled: [], samples: [] };
 
             // Recupera l'UUID generato da executeDBAction offline (già in allVisits)
             const lastAdded = allVisits[allVisits.length - 1];
@@ -839,7 +981,8 @@ async function addAppointment() {
                 time: time,
                 note: "",
                 dbId: tempDbId,
-                isWalkinDone: false
+                isWalkinDone: false,
+                isSample: false
             });
 
             openAlert("Salvato In Locale. Sarà Sincronizzato Appena Torna Internet!");
@@ -849,6 +992,48 @@ async function addAppointment() {
             // DD Online: Ricarichiamo Da Supabase Per Avere ID Reale E Relazioni
             await loadMonthDataFromSupabase(currentDate);
             openAlert("Appuntamento Aggiunto Con Successo!");
+            renderDayAppointments();
+            resetForm();
+        }
+
+    } else if (currentTab === 'samples') {
+        // CC Salvataggio Rilascio Campioni (Senza Orario)
+        const noteInput = document.getElementById('sample-note-input')?.value.trim() || '';
+        const formattedNote = typeof formatSampleNoteForDB === 'function'
+            ? formatSampleNoteForDB(noteInput)
+            : (noteInput ? `[Campioni] ${noteInput}` : '[Campioni]');
+
+        await executeDBAction('INSERT', 'visite', {
+            medico_id: clientId,
+            data_visita: selectedDateISO,
+            ora_visita: '00:00',
+            note: formattedNote,
+            is_walkin_done: false
+        });
+
+        if (!navigator.onLine) {
+            if (!appointments[selectedDateISO]) appointments[selectedDateISO] = { scheduled: [], samples: [] };
+
+            const lastAdded = allVisits[allVisits.length - 1];
+            const tempDbId = lastAdded ? (lastAdded.id || lastAdded.dbId) : crypto.randomUUID();
+
+            appointments[selectedDateISO].samples.push({
+                id: clientId,
+                name: nomeMedico,
+                city: cittaMedico,
+                time: '00:00',
+                note: formattedNote,
+                dbId: tempDbId,
+                isWalkinDone: false,
+                isSample: true
+            });
+
+            openAlert("Rilascio Campioni Salvato In Locale. Sarà Sincronizzato Appena Torna Internet!");
+            renderDayAppointments();
+            resetForm();
+        } else {
+            await loadMonthDataFromSupabase(currentDate);
+            openAlert("Rilascio Campioni Aggiunto Con Successo!");
             renderDayAppointments();
             resetForm();
         }
@@ -938,18 +1123,27 @@ async function confirmEditVisit() {
     if (!newDate || !newTime) return openAlert("Inserisci Data E Ora Valide");
 
     // CC Aggiornamento Visita DIRETTAMENTE Nel Database
+    // DD Priorità All'ID Univoco — La Chiave Composta È Un Fallback Di Emergenza
     // DD In questo modo non dipende dall'array locale "allVisits" (che contiene solo il mese corrente),
     // DD permettendoci di spostare visite anche di mesi futuri o passati senza errori.
+    // DD Evita Collisioni Quando Lo Stesso Medico Ha Due Visite Nello Stesso Giorno
+    const matchCriteria = modalTargetVisitId
+        ? { id: modalTargetVisitId }
+        : { medico_id: modalTargetId, data_visita: modalTargetOldDate };
+
     const response = await executeDBAction('UPDATE', 'visite',
         { data_visita: newDate, ora_visita: newTime },
-        { medico_id: modalTargetId, data_visita: modalTargetOldDate });
+        matchCriteria);
 
-    // Operatore ?. È Il Null Safe Di JS. Se response è null O undefined Non Genera Errore Ma Si Limita A Restituire undefined, Evitando Crash In Caso Di Problemi Di Connessione O Altri Errori
     if (response?.error) {
         return openAlert("Errore Durante Aggiornamento");
     }
 
+    // CC Reset Del Contesto Visita Dopo Operazione Completata
+    modalTargetVisitId = null;
+
     closeModal('modal-edit-visit');
+
     // CC Imposto Flag Di Refresh
     appState.calendarNeedsRefresh = true;
     appState.clientsNeedsRefresh = true;
@@ -960,11 +1154,8 @@ async function confirmEditVisit() {
         modalEl.addEventListener('hidden.bs.modal', () => {
             openAlert("Spostamento Salvato In Locale. La Vista Si Aggiornerà Appena Torni Online.");
         }, { once: true });
-        closeModal('modal-edit-visit');
         return;
     }
-
-    closeModal('modal-edit-visit');
 
     // CC Ricalcolo Vista SQL Per Aggiornare Le Card In Base Alle Nuove Date/Orari
     if (document.getElementById('clients-view').classList.contains('active')) {
@@ -1044,10 +1235,8 @@ async function deleteApp(visitDbId) {
 // ==========================================================================
 
 // BB Rendering e UI
-function renderClients() {
-    const container = document.getElementById('clients-container');
-    if (!container) return;
-
+// BB Filtri Anagrafica (Usata Sia Da renderClients Sia Dall'Export)
+function getFilteredClients() {
     // CC Acquisizione Valori Filtri
     const searchTerm = (document.getElementById('search-client')?.value || "").toLowerCase();
     const filterSpec = document.getElementById('filter-spec')?.value || 'all';
@@ -1057,11 +1246,8 @@ function renderClients() {
     const filterVisitEl = document.querySelector('input[name="visitFilter"]:checked');
     const filterVisit = filterVisitEl ? filterVisitEl.value : 'all';
 
-    container.innerHTML = '';
-    const today = dayjs().startOf('day');
-
     // CC Logica di Filtraggio
-    const filtered = clientsList.filter(c => {
+    return clientsList.filter(c => {
         const matchesSearch = c.name.toLowerCase().includes(searchTerm);
         const matchesSpec = filterSpec === 'all' || c.specialization === filterSpec;
         const matchesCity = filterCity === 'all' || c.city === filterCity;
@@ -1072,6 +1258,17 @@ function renderClients() {
 
         return matchesSearch && matchesSpec && matchesCity && matchesVisit;
     });
+}
+
+function renderClients() {
+    const container = document.getElementById('clients-container');
+    if (!container) return;
+
+    container.innerHTML = '';
+    const today = dayjs().startOf('day');
+
+    // CC Applicazione Filtri
+    const filtered = getFilteredClients();
 
     if (filtered.length === 0) {
         container.innerHTML = '<p class="text-center py-5">Nessun Medico Trovato Con Questi Filtri</p>';
@@ -1089,30 +1286,31 @@ function renderClients() {
         if (client.lastVisit) {
             const diff = today.diff(dayjs(client.lastVisit).startOf('day'), 'day');
 
-            if (diff >= 30) borderClass = 'border-urgent';
-            else if (diff >= 15) borderClass = 'border-warn';
+
+            if (diff >= VISIT_THRESHOLD_HIGH) borderClass = 'border-urgent';
+            else if (diff >= VISIT_THRESHOLD_MEDIUM) borderClass = 'border-warn';
             else borderClass = 'border-ok';
 
             rigaUltimaVisita = `Ultima Visita: <strong>${dayjs(client.lastVisit).format('DD/MM/YY')}</strong>`;
             rigaGiorniTrascorsi = diff === 0 ? "Visitato Oggi" : (diff === 1 ? "Visitato Ieri" : `Trascorsi: <strong>${diff} Giorni</strong>`);
-            actionButton = `<button class="btn-small btn-undo" data-action="move-visit" data-id="${client.id}">
-                                <i data-lucide="calendar-range" style="width:14px; height:14px; margin-right:5px;"></i> SPOSTA
+            actionButton = `<button class="btn-pill-small btn-phone-call" data-action="call-client" data-id="${client.id}">
+                                <i data-lucide="phone" style="width:13px; height:13px;"></i> CHIAMA
                             </button>`;
 
         } else if (client.nextVisit) {
             borderClass = 'border-neutral';
             rigaUltimaVisita = `Ultima Visita: <strong>Mai</strong>`;
             rigaGiorniTrascorsi = `In Programma Per Il <strong>${dayjs(client.nextVisit).format('DD/MM/YY')}</strong>`;
-            actionButton = `<button class="btn-small btn-undo" data-action="move-visit" data-id="${client.id}">
-                                <i data-lucide="calendar-range" style="width:14px; height:14px; margin-right:5px;"></i> SPOSTA
+            actionButton = `<button class="btn-pill-small btn-phone-call" data-action="call-client" data-id="${client.id}">
+                                <i data-lucide="phone" style="width:13px; height:13px;"></i> CHIAMA
                             </button>`;
 
         } else {
             borderClass = 'border-neutral';
             rigaUltimaVisita = `Ultima Visita: <strong>Mai</strong>`;
             rigaGiorniTrascorsi = "Nessuna Visita Effettuata";
-            actionButton = `<button class="btn-small btn-done" data-action="add-visit" data-id="${client.id}">
-                                <i data-lucide="plus-circle" style="width:14px; height:14px; margin-right:5px;"></i> VISITA
+            actionButton = `<button class="btn-pill-small btn-done" data-action="add-visit" data-id="${client.id}">
+                                <i data-lucide="plus-circle" style="width:13px; height:13px;"></i> VISITA
                             </button>`;
         }
 
@@ -1137,12 +1335,17 @@ function renderClients() {
 
             <div class="card-actions">
                 <button class="btn-small btn-edit" data-action="edit-client" data-id="${client.id}">
-                    <i data-lucide="user-cog" style="width:14px; height:14px; margin-right:5px;"></i> PROFILO
+                    <i data-lucide="user-cog" style="width:14px; height:14px;"></i> PROFILO
                 </button>
-                ${actionButton}
-                <button class="btn-small btn-delete" data-action="delete-client" data-id="${client.id}">
-                    <i data-lucide="trash-2" style="width:14px; height:14px;"></i>
-                </button>
+                <div class="card-actions-pills">
+                    <button class="btn-pill-small btn-storico" data-action="storico-client" data-id="${client.id}">
+                        <i data-lucide="history" style="width:13px; height:13px;"></i> STORICO
+                    </button>
+                    ${actionButton}
+                    <button class="btn-pill-small btn-delete" data-action="delete-client" data-id="${client.id}">
+                        <i data-lucide="trash-2" style="width:13px; height:13px;"></i> ELIMINA
+                    </button>
+                </div>
             </div>`;
         container.appendChild(card);
     });
@@ -1192,16 +1395,36 @@ function resetAllFilters() {
 // BB Modifica Dati Medico
 async function confirmEditClient() {
     const name = toTitleCase(document.getElementById('modal-edit-name').value.trim());
-    const city = toTitleCase(document.getElementById('modal-edit-city').value.trim());
     const phone = document.getElementById('modal-edit-phone').value.trim();
     const spec = document.getElementById('modal-edit-spec').value;
     const checkboxes = document.querySelectorAll('#modal-edit-days-checkboxes input:checked');
     const days = collectTimeSlots('modal-edit-days-checkboxes');
 
-    if (!name) return openAlert("Il nome è obbligatorio.");
+    if (!name) return openAlert("Il Nome È Obbligatorio.");
+
+    const editRows = [...document.querySelectorAll('#edit-address-container .address-row')];
+    const rawLocations = editRows.map(row => {
+        const rowCity = toTitleCase(row.querySelector('.address-city-input')?.value.trim() || '');
+        const rowAddr = toTitleCase(row.querySelector('.address-input')?.value.trim() || '');
+        return { indirizzo: rowAddr, citta: rowCity };
+    }).filter(loc => loc.indirizzo || loc.citta);
+
+    const primaryCity = rawLocations[0]?.citta || toTitleCase(document.getElementById('modal-edit-city')?.value.trim() || '');
+    const primaryAddr = rawLocations[0]?.indirizzo || '';
+
+    const structuredLocations = rawLocations.map(loc => ({
+        indirizzo: loc.indirizzo,
+        citta: loc.citta || primaryCity
+    }));
 
     await executeDBAction('UPDATE', 'medici', {
-        nome: name, citta: city, cellulare: phone, specializzazione: spec, giorni_liberi: days
+        nome: name,
+        citta: primaryCity,
+        cellulare: phone,
+        specializzazione: spec,
+        giorni_liberi: days,
+        indirizzo: primaryAddr,
+        indirizzi: JSON.stringify(structuredLocations)
     }, { id: modalTargetId });
 
     // CC Imposto Flag Di Refresh
@@ -1258,11 +1481,14 @@ async function renderTasks() {
         console.log("📡 Modalità Offline: Caricamento Tasks Da Cache", cachedTasks);
         tasksList = cachedTasks || [];
     } else {
-        const { data, error } = await sb.from('tasks').select('*, medici(nome)');
+        const { data: { user } } = await sb.auth.getUser();
+        const { data, error } = await sb.from('tasks')
+            .select('*, medici(nome)')
+            .eq('user_id', user.id);   // ← filtro esplicito, stesso pattern di loadMonthDataFromSupabase
         if (!error) {
-            tasksList = data || []; // Assegna i dati alla variabile globale
+            tasksList = data || [];
             if (typeof saveToOfflineCache === 'function') {
-                saveToOfflineCache('tasksData', tasksList); // Aggiorna la cache
+                saveToOfflineCache('tasksData', tasksList);
             }
         }
     }
@@ -1345,23 +1571,62 @@ async function openAddTaskModal() {
     }
 
     const select = document.getElementById('task-medico-link');
-    let html = '<option value="">Nessun Medico Specifico</option>';
-
-    // Ordine alfabetico per facilitare la ricerca
     const sortedClients = [...clientsList].sort((a, b) => a.name.localeCompare(b.name));
-    sortedClients.forEach(c => {
-        html += `<option value="${c.id}">${escapeHTML(c.name)}</option>`;
-    });
-    select.innerHTML = html;
 
-    // Reset UI
+    if (tsTaskMedico) {
+        // Aggiorna opzioni e azzera selezione senza uscire dalla funzione
+        tsTaskMedico.clearOptions();
+        tsTaskMedico.addOption(
+            sortedClients.map(c => ({ value: c.id, text: c.name }))
+        );
+        tsTaskMedico.clear(true); // azzera selezione, mostra placeholder
+        tsTaskMedico.refreshOptions(false);
+    } else {
+        // Prima inizializzazione: NO opzione vuota nell'HTML
+        let html = '<option value="" disabled selected>Cerca O Seleziona Un Medico...</option>';
+        sortedClients.forEach(c => {
+            html += `<option value="${c.id}">${escapeHTML(c.name)}</option>`;
+        });
+        select.innerHTML = html;
+
+        tsTaskMedico = new TomSelect('#task-medico-link', {
+            placeholder: 'Cerca o seleziona un medico...',
+            searchField: ['text'],
+            maxOptions: null,
+            create: false,
+            allowEmptyOption: false,
+            closeAfterSelect: true,
+            hideSelected: false,
+            dropdownParent: null,
+            onDropdownOpen: function (dropdown) {
+                const modal = document.querySelector('#modal-add-task .modal-body');
+                if (!modal) return;
+                const modalRect = modal.getBoundingClientRect();
+                const dropdownRect = dropdown.getBoundingClientRect();
+                const spaceBottom = 24;
+                const maxH = modalRect.bottom - dropdownRect.top - spaceBottom;
+                const content = dropdown.querySelector('.ts-dropdown-content');
+                if (content) {
+                    content.style.maxHeight = Math.max(100, maxH) + 'px';
+                    content.style.overflowY = 'auto';
+                }
+            },
+            render: {
+                no_results: function () {
+                    return '<div class="no-results">Nessun medico trovato</div>';
+                }
+            }
+        });
+    }
+
+    // Reset UI — eseguito SEMPRE, sia al primo che ai successivi open
     document.getElementById('task-id-hidden').value = '';
     document.getElementById('task-titolo').value = '';
     document.getElementById('task-note').value = '';
     document.getElementById('task-priorita').value = '1';
-    document.getElementById('type-gen').checked = true;                             // Default: Generica
+    document.getElementById('type-gen').checked = true;
     document.getElementById('task-modal-title').innerText = "Nuova Attività";
-    document.getElementById('task-type-selector').classList.remove('display-none'); // Mostra I Bottoni Di Selezione Tipo Task
+    document.getElementById('task-type-selector').classList.remove('display-none');
 
     toggleTaskType();
     openModal('modal-add-task');
@@ -1371,7 +1636,9 @@ async function saveTask() {
     let id = document.getElementById('task-id-hidden').value;
     const type = document.querySelector('input[name="taskType"]:checked').value;
     const priorita = parseInt(document.getElementById('task-priorita').value);
-    const medico_id = document.getElementById('task-medico-link').value || null;
+
+    const medicoLinkEl = document.getElementById('task-medico-link');
+    const medico_id = (tsTaskMedico ? tsTaskMedico.getValue() : medicoLinkEl.value) || null;
 
     let titolo = "";
     let descrizione = null;
@@ -1461,7 +1728,11 @@ async function editTask(id) {
     document.getElementById('task-titolo').value = task.titolo;
     document.getElementById('task-note').value = task.descrizione || '';
     document.getElementById('task-priorita').value = task.priorita;
-    document.getElementById('task-medico-link').value = task.medico_id || '';
+    if (tsTaskMedico) {
+        tsTaskMedico.setValue(task.medico_id || '', true);
+    } else {
+        document.getElementById('task-medico-link').value = task.medico_id || '';
+    }
     document.getElementById('task-modal-title').innerText = "Modifica Attività";
 
     // CC Forza La UI Su "Generica" Durante Edit
@@ -1570,9 +1841,46 @@ function openEditClient(clientId) {
     modalTargetId = clientId;
 
     document.getElementById('modal-edit-name').value = client.name;
-    document.getElementById('modal-edit-city').value = client.city || '';
     document.getElementById('modal-edit-spec').value = client.specialization || '';
     document.getElementById('modal-edit-phone').value = client.phone || '';
+
+    const editAddrContainer = document.getElementById('edit-address-container');
+    if (editAddrContainer) {
+        editAddrContainer.innerHTML = '';
+
+        let locations = [];
+        if (Array.isArray(client.indirizzi) && client.indirizzi.length > 0) {
+            locations = client.indirizzi.map(item => {
+                if (typeof item === 'object' && item !== null) {
+                    return {
+                        indirizzo: item.indirizzo || item.address || '',
+                        citta: item.citta || item.city || client.city || ''
+                    };
+                }
+                return { indirizzo: String(item || ''), citta: client.city || '' };
+            });
+        } else {
+            locations = [{ indirizzo: client.address || '', citta: client.city || '' }];
+        }
+
+        locations.forEach((loc, i) => {
+            const isFirst = i === 0;
+            const row = document.createElement('div');
+            row.className = 'd-flex gap-2 w-100 align-items-center address-row';
+            row.innerHTML = `
+                <input type="text" ${isFirst ? 'id="modal-edit-city"' : ''} class="form-control address-city-input"
+                    style="flex: 0 0 38%;" placeholder="Città" value="${escapeHTML(loc.citta || '')}">
+                <input type="text" class="form-control address-input"
+                    style="flex: 1; min-width: 0;" placeholder="${isFirst ? 'Indirizzo' : 'Indirizzo aggiuntivo'}" value="${escapeHTML(loc.indirizzo || '')}">
+                ${isFirst
+                    ? `<button type="button" class="btn-address btn-address-add" style="border-radius: 10px; height: 38px; width: 38px; flex-shrink: 0;" onclick="addAddressRow('edit-address-container')">+</button>`
+                    : `<button type="button" class="btn-address btn-address-remove" style="border-radius: 10px; height: 38px; width: 38px; flex-shrink: 0;" onclick="this.closest('.address-row').remove()"><i data-lucide="x" style="width:16px;height:16px;pointer-events:none;"></i></button>`
+                }
+            `;
+            editAddrContainer.appendChild(row);
+        });
+        if (typeof lucide !== 'undefined') lucide.createIcons();
+    }
 
     document.querySelectorAll('#modal-edit-days-checkboxes input.btn-check').forEach(cb => {
         cb.checked = false;
@@ -1598,11 +1906,13 @@ function openEditClient(clientId) {
                         const div = document.createElement('div');
                         div.className = 'd-flex align-items-center gap-2 mb-1 slot-row';
                         div.innerHTML = `
-                        <input type="time" class="form-control form-control-sm time-from" value="${from}">
-                        <span class="small">al</span>
-                        <input type="time" class="form-control form-control-sm time-to" value="${to}">
-                        ${index > 0 ? '<button type="button" class="btn btn-sm text-danger p-0" onclick="this.parentElement.remove()">×</button>' : ''}
-                    `;
+                            <input type="time" class="form-control form-control-sm time-from" value="${from}">
+                            <span class="small">al</span>
+                            <input type="time" class="form-control form-control-sm time-to" value="${to}">
+                            ${index > 0 ?
+                                '<button type="button" class="btn btn-sm text-danger p-0" onclick="this.parentElement.remove()">×</button>'
+                                : '<button type="button" class="btn btn-sm text-danger p-0" style="visibility:hidden;" tabindex="-1">×</button>'}
+                            `;
                         container.appendChild(div);
                     });
                 }
@@ -1619,6 +1929,7 @@ function openEditClient(clientId) {
         }
     }
     openModal('modal-edit-client');
+    if (typeof lucide !== 'undefined') lucide.createIcons();
 }
 
 function openEditVisit(clientId) {
@@ -1626,11 +1937,35 @@ function openEditVisit(clientId) {
     const dateToMove = client.nextVisit || client.lastVisit;
     if (!dateToMove) return openAlert("Nessuna Visita Trovata");
 
+    // CC: Recuperiamo L'ID Univoco Della Visita Dalla RAM Per Evitare UPDATE Con Chiave Composta
+    const visitaTarget = allVisits.find(v => v.medico_id === clientId && v.data_visita === dateToMove);
+    modalTargetVisitId = visitaTarget ? (visitaTarget.id || visitaTarget.dbId) : null;
+
     modalTargetId = clientId;
     modalTargetOldDate = dateToMove;
+
     document.getElementById('modal-edit-visit-desc').innerHTML = `Sposta Visita Di <b>${escapeHTML(client.name)}</b>`;
     document.getElementById('edit-visit-date').value = dateToMove;
     document.getElementById('edit-visit-time').value = "09:00";
+    openModal('modal-edit-visit');
+}
+
+// Versione della funzione per la day-view: riceve l'ID medico e l'ID visita direttamente
+function openEditVisitFromDay(clientId, visitDbId, clientName) {
+    modalTargetId = clientId;
+    modalTargetOldDate = selectedDateISO;
+    modalTargetVisitId = visitDbId;
+
+    document.getElementById('modal-edit-visit-desc').innerHTML =
+        `Sposta visita di <b>${escapeHTML(clientName)}</b>`;
+    document.getElementById('edit-visit-date').value = selectedDateISO;
+    document.getElementById('edit-visit-time').value =
+        // precompila con l'orario attuale della visita se disponibile
+        (function () {
+            const v = allVisits.find(v => (v.id === visitDbId || v.dbId === visitDbId));
+            return v ? v.ora_visita.substring(0, 5) : '09:00';
+        })();
+
     openModal('modal-edit-visit');
 }
 
@@ -1688,6 +2023,137 @@ function openNavigator(query) {
     }
 }
 
+async function openStorico(clientId) {
+    const client = clientsList.find(c => c.id === clientId);
+    if (!client) return;
+
+    // CC Aggiorna titolo modale
+    document.getElementById('modal-storico-title').textContent = `Storico — ${client.name}`;
+
+    const list = document.getElementById('modal-storico-list');
+    list.innerHTML = '';
+
+    // CC Skeleton mentre carica
+    list.innerHTML = `
+        <div class="skeleton-box skeleton-text w-100" style="height:40px;"></div>
+        <div class="skeleton-box skeleton-text w-100" style="height:40px;"></div>
+        <div class="skeleton-box skeleton-text w-100" style="height:40px;"></div>
+    `;
+    openModal('modal-storico');
+
+    let visite = [];
+
+    if (!navigator.onLine) {
+        // DD Offline: leggi da cache (contiene solo il mese corrente)
+        const cached = await getFromOfflineCache('visitsData') || [];
+        visite = cached.filter(v => v.medico_id === clientId);
+    } else {
+        // DD Online: query completa su tutta la storia del medico
+        const { data, error } = await sb.from('visite')
+            .select('data_visita, ora_visita, note, is_walkin_done')
+            .eq('medico_id', clientId)
+            .order('data_visita', { ascending: false });
+
+        if (error) {
+            list.innerHTML = '<p class="text-danger text-center small">Errore nel caricamento dello storico.</p>';
+            return;
+        }
+        visite = data || [];
+    }
+
+    list.innerHTML = '';
+
+    if (visite.length === 0) {
+        const empty = document.createElement('p');
+        empty.className = 'text-center text-muted small py-3';
+        empty.textContent = 'Nessuna visita registrata per questo medico.';
+        list.appendChild(empty);
+        if (typeof lucide !== 'undefined') lucide.createIcons();
+        return;
+    }
+
+    const today = dayjs().startOf('day');
+
+    visite.forEach(v => {
+        const dataObj = dayjs(v.data_visita);
+        const isFutura = dataObj.isAfter(today);
+        const isOggi = dataObj.isSame(today, 'day');
+
+        // CC Etichetta badge stato
+        let badgeClass, badgeText;
+        if (isOggi) {
+            badgeClass = 'bg-success text-white';
+            badgeText = 'Oggi';
+        } else if (isFutura) {
+            badgeClass = 'bg-primary text-white';
+            badgeText = 'In programma';
+        } else {
+            badgeClass = 'bg-light text-secondary';
+            badgeText = 'Effettuata';
+        }
+
+        const row = document.createElement('div');
+        row.className = 'storico-row d-flex align-items-center justify-content-between p-3 rounded-3 border';
+
+        // Colonna sinistra: data + ora
+        const left = document.createElement('div');
+        left.className = 'd-flex align-items-center gap-3';
+
+        const iconWrap = document.createElement('div');
+        iconWrap.className = 'storico-icon-wrap';
+        const icon = document.createElement('i');
+        icon.setAttribute('data-lucide', isFutura || isOggi ? 'calendar-check' : 'calendar');
+        iconWrap.appendChild(icon);
+
+        const info = document.createElement('div');
+
+        const dataEl = document.createElement('div');
+        dataEl.className = 'fw-bold text-dark small';
+        dataEl.textContent = dataObj.format('DD/MM/YYYY');
+
+        const oraEl = document.createElement('div');
+        oraEl.className = 'text-muted';
+        oraEl.style.fontSize = '0.78rem';
+        oraEl.textContent = v.ora_visita ? v.ora_visita.substring(0, 5) : '—';
+
+        info.appendChild(dataEl);
+        info.appendChild(oraEl);
+        left.appendChild(iconWrap);
+        left.appendChild(info);
+
+        // Colonna destra: badge + nota
+        const right = document.createElement('div');
+        right.className = 'd-flex flex-column align-items-end gap-1';
+
+        const badge = document.createElement('span');
+        badge.className = `badge rounded-pill ${badgeClass}`;
+        badge.style.fontSize = '0.68rem';
+        badge.textContent = badgeText;
+
+        right.appendChild(badge);
+
+        if (v.note) {
+            const nota = document.createElement('span');
+            nota.className = 'text-muted';
+            nota.style.fontSize = '0.72rem';
+            nota.style.maxWidth = '120px';
+            nota.style.textAlign = 'right';
+            nota.style.overflow = 'hidden';
+            nota.style.textOverflow = 'ellipsis';
+            nota.style.whiteSpace = 'nowrap';
+            // textContent: sicuro, nessun rischio XSS
+            nota.textContent = v.note.length > 25 ? v.note.substring(0, 25) + '…' : v.note;
+            right.appendChild(nota);
+        }
+
+        row.appendChild(left);
+        row.appendChild(right);
+        list.appendChild(row);
+    });
+
+    if (typeof lucide !== 'undefined') lucide.createIcons();
+}
+
 // ==========================================================================
 // AA 10: FORM HELPERS E GESTIONE UI (DOM MANIPULATION)
 // ==========================================================================
@@ -1734,12 +2200,51 @@ function updateExistingClientsSelect() {
     // Ordiniamo la lista dei medici alfabeticamente per facilitare la ricerca
     const sortedClients = [...clientsList].sort((a, b) => a.name.localeCompare(b.name));
 
+    // Se l'istanza TomSelect esiste già, la aggiorniamo senza ricrearla
+    if (tsExistingClient) {
+        tsExistingClient.clearOptions();
+        tsExistingClient.addOption(
+            sortedClients.map(c => ({ value: c.id, text: `${c.name} (${c.city})` }))
+        );
+        tsExistingClient.refreshOptions(false);
+        return;
+    }
+
     let html = '<option value="" disabled selected>Seleziona Medico Dalla Lista...</option>';
     sortedClients.forEach(c => {
         html += `<option value="${c.id}">${c.name} (${c.city})</option>`;
     });
 
     select.innerHTML = html;
+
+    tsExistingClient = new TomSelect('#existing-client-select', {
+        placeholder: 'Cerca o seleziona un medico...',
+        searchField: ['text'],
+        maxOptions: null,
+        create: false,
+        allowEmptyOption: false,
+        closeAfterSelect: true,
+        hideSelected: false,
+        dropdownParent: null,
+        onDropdownOpen: function (dropdown) {
+            const card = document.querySelector('#day-view .card.border-custom-glow');
+            if (!card) return;
+            const cardRect = card.getBoundingClientRect();
+            const dropdownRect = dropdown.getBoundingClientRect();
+            const spaceBottom = 24;
+            const maxH = cardRect.bottom - dropdownRect.top - spaceBottom;
+            const content = dropdown.querySelector('.ts-dropdown-content');
+            if (content) {
+                content.style.maxHeight = Math.max(80, maxH) + 'px';
+                content.style.overflowY = 'auto';
+            }
+        },
+        render: {
+            no_results: function () {
+                return '<div class="no-results">Nessun medico trovato</div>';
+            }
+        }
+    });
 }
 
 // BB Toggles UI Interattivi
@@ -1769,20 +2274,17 @@ function checkOtherSpec(select) {
 }
 
 function toggleMobileFilters() {
+    if (window.innerWidth >= 992) return;
+
     const panel = document.getElementById('mobile-filter-panel');
     const icon = document.getElementById('filter-chevron');
 
-    // Desktop Non Fare Nulla
-    if (window.innerWidth >= 992) return;
-
     panel.classList.toggle('display-none');
 
-    // Rotazione Icona
-    if (!panel.classList.contains('display-none')) {
-        icon.style.transform = "rotate(180deg)";
-    } else {
-        icon.style.transform = "rotate(0deg)";
-    }
+    // Ruota la chevron in base allo stato attuale
+    icon.style.transform = panel.classList.contains('display-none')
+        ? 'rotate(0deg)'
+        : 'rotate(180deg)';
 }
 
 // BB Funzioni Form Multi-Orario Ricevimento
@@ -1796,17 +2298,21 @@ function toggleTimeInput(containerId, dayId, show) {
         div.id = groupId;
         div.className = 'mt-2 p-2 rounded-3 border bg-white animate-float w-100 day-time-group';
         div.innerHTML = `
-            <div class="d-flex align-items-center justify-content-between mb-2">
+            <div class="d-flex align-items-center mb-2">
                 <span class="badge bg-primary">${getDayLabel(dayId)}</span>
-                <button type="button" class="btn btn-sm btn-outline-primary py-0 px-2" onclick="addExtraSlot('${groupId}')">+</button>
             </div>
             <div class="slots-container">
                 <div class="d-flex align-items-center gap-2 mb-1 slot-row">
                     <input type="time" class="form-control form-control-sm time-from" value="09:00">
                     <span class="small">al</span>
                     <input type="time" class="form-control form-control-sm time-to" value="13:00">
+                    <button type="button" class="btn btn-sm text-danger p-0" style="visibility:hidden;" tabindex="-1">×</button>
                 </div>
             </div>
+            <hr class="my-2">
+            <button type="button" class="btn-add-slot" onclick="addExtraSlot('${groupId}')">
+                Aggiungi Fascia Oraria
+            </button>
         `;
         parent.after(div);
     } else if (!show && existingGroup) {
@@ -1825,6 +2331,7 @@ function addExtraSlot(groupId) {
         <button type="button" class="btn btn-sm text-danger p-0" onclick="this.parentElement.remove()">×</button>
     `;
     container.appendChild(div);
+    container.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 }
 
 function collectTimeSlots(containerId) {
@@ -1850,15 +2357,36 @@ function collectTimeSlots(containerId) {
 
 // BB Reset e Sanificazione
 function resetForm() {
-    document.querySelectorAll('#new-client-div input, #time-group input, #custom-spec-input').forEach(i => i.value = '');
+    document.querySelectorAll('#new-client-div input, #time-group input, #samples-group input, #custom-spec-input').forEach(i => i.value = '');
     document.querySelectorAll('#available-days-checkboxes input').forEach(c => c.checked = false);
     document.querySelectorAll('#day-view select.form-select').forEach(s => s.value = '');
+
+    // Reset TomSelect Day View se inizializzato
+    if (tsExistingClient) {
+        tsExistingClient.clear(true);
+    }
 
     const specSelect = document.getElementById('new-client-spec');
     const customInput = document.getElementById('custom-spec-input');
     if (specSelect && customInput) {
         specSelect.classList.replace('w-50', 'w-100');
         customInput.classList.add('display-none');
+    }
+
+    // Reset blocco indirizzi in resetForm()
+    const newAddrContainer = document.getElementById('new-address-container');
+    if (newAddrContainer) {
+        const rows = newAddrContainer.querySelectorAll('.address-row');
+        rows.forEach((row, idx) => {
+            if (idx === 0) {
+                const cityInput = row.querySelector('.address-city-input');
+                const addrInput = row.querySelector('.address-input');
+                if (cityInput) cityInput.value = '';
+                if (addrInput) addrInput.value = '';
+            } else {
+                row.remove();
+            }
+        });
     }
 }
 
@@ -1906,6 +2434,28 @@ function escapeHTML(str) {
 
 function editNoteFromAttr(el) {
     editNote(el.dataset.visitId, el.dataset.note);
+}
+
+// BB Parsing Indirizzi
+function parseIndirizzi(indirizziRaw, fallbackIndirizzo, fallbackCitta = '') {
+    try {
+        const parsed = JSON.parse(indirizziRaw || '[]');
+        if (Array.isArray(parsed) && parsed.length > 0) {
+            return parsed.map(item => {
+                if (typeof item === 'object' && item !== null) {
+                    return {
+                        indirizzo: item.indirizzo || item.address || '',
+                        citta: item.citta || item.city || fallbackCitta || ''
+                    };
+                }
+                return {
+                    indirizzo: String(item || ''),
+                    citta: fallbackCitta || ''
+                };
+            }).filter(loc => loc.indirizzo || loc.citta);
+        }
+    } catch (e) { }
+    return fallbackIndirizzo ? [{ indirizzo: fallbackIndirizzo, citta: fallbackCitta || '' }] : [];
 }
 
 // BB Data Parsers

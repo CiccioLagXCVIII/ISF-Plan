@@ -43,55 +43,61 @@
 
 <!-- AA Modifica Medico -->
 <div class="modal fade" id="modal-edit-client" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable">
+    <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content">
             <div class="modal-header border-0 pb-0">
-                <h4 class="modal-title fw-bold d-flex align-items-center gap-2"><i data-lucide="user-cog"
-                        class="text-primary"></i> Modifica Medico</h4>
+                <h4 class="modal-title fw-bold d-flex align-items-center gap-2">
+                    <i data-lucide="user-cog" class="text-primary"></i> Modifica Medico
+                </h4>
                 <button type="button" class="btn-close" onclick="closeModal('modal-edit-client')"></button>
             </div>
             <div class="modal-body p-4 text-start">
+
                 <div class="mb-3">
                     <label class="label-custom-sm">Nome:</label>
                     <input type="text" id="modal-edit-name" class="form-control">
                 </div>
-                <div class="mb-3">
-                    <label class="label-custom-sm">Città:</label>
-                    <input type="text" id="modal-edit-city" class="form-control">
-                </div>
+
                 <div class="mb-3">
                     <label class="label-custom-sm">Cellulare:</label>
                     <input type="tel" id="modal-edit-phone" class="form-control">
                 </div>
+
+                <div class="mb-3">
+                    <label class="label-custom-sm">Studi e Indirizzi (Città e Indirizzo):</label>
+                    <div id="edit-address-container" class="d-flex flex-column gap-2 w-100">
+                        <!-- Righe generate dinamicamente -->
+                    </div>
+                </div>
+
                 <div class="mb-3">
                     <label class="label-custom-sm">Specializzazione:</label>
                     <select id="modal-edit-spec" class="form-select"></select>
                 </div>
+
                 <div class="mb-4">
                     <label class="label-custom-sm">Giorni Ricevimento:</label>
                     <div class="d-flex flex-wrap gap-2" id="modal-edit-days-checkboxes">
                         <input type="checkbox" class="btn-check" id="edit-day-1" value="1">
                         <label class="btn btn-outline-primary btn-sm flex-fill fw-bold" for="edit-day-1">Lun</label>
-
                         <input type="checkbox" class="btn-check" id="edit-day-2" value="2">
                         <label class="btn btn-outline-primary btn-sm flex-fill fw-bold" for="edit-day-2">Mar</label>
-
                         <input type="checkbox" class="btn-check" id="edit-day-3" value="3">
                         <label class="btn btn-outline-primary btn-sm flex-fill fw-bold" for="edit-day-3">Mer</label>
-
                         <input type="checkbox" class="btn-check" id="edit-day-4" value="4">
                         <label class="btn btn-outline-primary btn-sm flex-fill fw-bold" for="edit-day-4">Gio</label>
-
                         <input type="checkbox" class="btn-check" id="edit-day-5" value="5">
                         <label class="btn btn-outline-primary btn-sm flex-fill fw-bold" for="edit-day-5">Ven</label>
                     </div>
                 </div>
+
                 <div class="d-flex gap-2">
                     <button type="button" class="btn btn-light rounded-pill flex-fill fw-semibold"
                         onclick="closeModal('modal-edit-client')">Annulla</button>
                     <button type="button" onclick="confirmEditClient()"
                         class="btn btn-primary rounded-pill flex-fill fw-bold shadow-sm">Salva</button>
                 </div>
+
             </div>
         </div>
     </div>
@@ -295,6 +301,48 @@
                 <input type="date" id="jump-to-date-input" class="form-control mb-3 text-center">
                 <button class="btn btn-primary rounded-pill w-100 fw-bold shadow-sm" onclick="jumpToDate()">Vai al
                     Giorno</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- AA Selezione Indirizzo Per Navigatore -->
+<div class="modal fade" id="modal-address-picker" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-sm">
+        <div class="modal-content">
+            <div class="modal-header border-0 pb-0">
+                <h5 class="modal-title fw-bold d-flex align-items-center gap-2">
+                    <i data-lucide="map-pin" class="text-primary"></i> Scegli Indirizzo
+                </h5>
+                <button type="button" class="btn-close" onclick="closeModal('modal-address-picker')"></button>
+            </div>
+            <div class="modal-body p-4">
+                <div id="address-picker-list" class="d-flex flex-column gap-2 mb-4"></div>
+                <button class="btn btn-primary fw-bold w-100 rounded-pill py-2" onclick="confirmAddressPicker()">
+                    <i data-lucide="navigation"></i> Naviga
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- AA Storico Visite Medico -->
+<div class="modal fade" id="modal-storico" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header border-0 pb-0">
+                <h4 class="modal-title fw-bold d-flex align-items-center gap-2">
+                    <i data-lucide="history" class="text-primary"></i>
+                    <span id="modal-storico-title">Storico Visite</span>
+                </h4>
+                <button type="button" class="btn-close" onclick="closeModal('modal-storico')"></button>
+            </div>
+            <div class="modal-body p-4">
+                <div id="modal-storico-list" class="d-flex flex-column gap-2"></div>
+            </div>
+            <div class="modal-footer border-0 pt-0">
+                <button class="btn btn-light rounded-pill px-4 fw-semibold"
+                    onclick="closeModal('modal-storico')">Chiudi</button>
             </div>
         </div>
     </div>

@@ -4,11 +4,11 @@ function toggleQuickMenu() {
     lucide.createIcons(); // Aggiorna icone se necessario
 }
 
-function goToToday() {
+async function goToToday() {
     const today = dayjs().format('YYYY-MM-DD');
-    // Aggiorna Data Corrente
     currentDate = dayjs();
-    // Apre Direttamente Vista Giorno
+
+    await loadMonthDataFromSupabase(currentDate);
     openDayView(today);
 }
 
@@ -19,17 +19,16 @@ function openJumpToDateModal() {
     openModal('modal-jump-date');
 }
 
-function jumpToDate() {
+async function jumpToDate() {
     const dateValue = document.getElementById('jump-to-date-input').value;
     if (!dateValue) return;
 
-    // Aggiorna Data Corrente
     currentDate = dayjs(dateValue);
-
-    // Chiude Modal
     closeModal('modal-jump-date');
 
-    // Apre Direttamente Vista Giorno
+    // Ricarica i dati del mese target PRIMA di aprire la day view,
+    // altrimenti "appointments" contiene ancora le visite del mese precedente
+    await loadMonthDataFromSupabase(currentDate);
     openDayView(dateValue);
 }
 
@@ -150,9 +149,130 @@ async function clearAppCache() {
 
 function reportProblem() {
     const email = "francescolv78@gmail.com";
-    const subject = "Segnalazione Problema ISFplan v1.6.2";
+    const subject = "Segnalazione Problema ISFplan v1.6.9.1";
     const body = "Descrivi Qui Il Problema Che Hai Riscontrato:\n\n- Passaggi Per Riprodurre:\n- Comportamento Atteso:\n- Comportamento Effettivo:\n\nGrazie Per Il Tuo Feedback!";
     window.location.href = `mailto:${email}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+}
+
+// AA GESTIONE INDIRIZZI MULTIPLI
+
+// BB Aggiunge Riga Indirizzo Con Coppia Città + Indirizzo e Tasto Rimozione
+function addAddressRow(containerId) {
+    const container = document.getElementById(containerId);
+    if (!container) return;
+
+    if (container.querySelectorAll('.address-row').length >= 3) {
+        openAlert('Puoi inserire al massimo 3 indirizzi.');
+        return;
+    }
+
+    const row = document.createElement('div');
+    row.className = 'd-flex gap-2 w-100 align-items-center address-row';
+    row.innerHTML = `
+        <input type="text" class="form-control address-city-input"
+            style="flex: 0 0 38%;" placeholder="Città">
+        <input type="text" class="form-control address-input"
+            style="flex: 1; min-width: 0;" placeholder="Indirizzo aggiuntivo">
+        <button type="button" class="btn-address btn-address-remove"
+            style="border-radius: 10px; height: 38px; width: 38px; flex-shrink: 0;"
+            onclick="this.closest('.address-row').remove()">
+            <i data-lucide="x" style="width:16px;height:16px;pointer-events:none;"></i>
+        </button>
+    `;
+    container.appendChild(row);
+    if (typeof lucide !== 'undefined') lucide.createIcons();
+}
+
+// Wrapper retrocompatibile per chiamate precedenti a addAddressInput
+function addAddressInput(inputsId, buttonsId) {
+    if (inputsId === 'new-address-container' || inputsId === 'edit-address-container') {
+        return addAddressRow(inputsId);
+    }
+    if (typeof inputsId === 'string' && inputsId.includes('new-')) return addAddressRow('new-address-container');
+    if (typeof inputsId === 'string' && inputsId.includes('edit-')) return addAddressRow('edit-address-container');
+}
+
+
+// AA NAVIGATORE CON SELEZIONE INDIRIZZO
+
+let _pendingNavData = null;
+
+// BB Punto di ingresso: controlla quanti indirizzi ci sono e agisce di conseguenza
+function openAddressPickerOrNavigate(navKey) {
+    const data = window._navData?.[navKey];
+    if (!data) return openAlert('Dati indirizzo non disponibili.');
+
+    const { indirizzi, city } = data;
+
+    if (!indirizzi || indirizzi.length === 0) {
+        if (city) openNavigator(encodeURIComponent(city));
+        else openAlert('Indirizzo mancante.');
+        return;
+    }
+
+    if (indirizzi.length <= 1) {
+        // Singolo indirizzo: vai direttamente al navigatore
+        const item = indirizzi[0];
+        const addrText = (typeof item === 'object' ? item.indirizzo : item) || '';
+        const cityText = (typeof item === 'object' && item.citta ? item.citta : city) || '';
+        const query = (addrText && cityText)
+            ? encodeURIComponent(`${addrText}, ${cityText}`)
+            : encodeURIComponent(addrText || cityText);
+        openNavigator(query);
+        return;
+    }
+
+    // Indirizzi multipli: mostra il picker
+    _pendingNavData = { indirizzi, city };
+
+    const list = document.getElementById('address-picker-list');
+    list.innerHTML = '';
+
+    indirizzi.forEach((item, i) => {
+        const addrText = (typeof item === 'object' ? item.indirizzo : item) || '';
+        const cityText = (typeof item === 'object' && item.citta ? item.citta : city) || '';
+        const labelText = (addrText && cityText)
+            ? `${escapeHTML(addrText)} <span class="text-secondary fw-normal">(${escapeHTML(cityText)})</span>`
+            : escapeHTML(addrText || cityText);
+
+        const div = document.createElement('div');
+        div.className = 'form-check p-3 rounded-3 border mb-2';
+        div.style.cursor = 'pointer';
+        div.innerHTML = `
+            <input class="form-check-input" type="radio" name="address-pick"
+                id="addr-pick-${i}" value="${i}" ${i === 0 ? 'checked' : ''}>
+            <label class="form-check-label fw-semibold ms-2 text-dark" for="addr-pick-${i}">
+                ${labelText}
+            </label>
+        `;
+        // Click sull'intera riga seleziona il radio
+        div.addEventListener('click', () => {
+            div.querySelector('input').checked = true;
+        });
+        list.appendChild(div);
+    });
+
+    if (typeof lucide !== 'undefined') lucide.createIcons();
+    openModal('modal-address-picker');
+}
+
+// BB Conferma la selezione e apre il navigatore
+function confirmAddressPicker() {
+    const selected = document.querySelector('input[name="address-pick"]:checked');
+    if (!selected || !_pendingNavData) return;
+
+    const { indirizzi, city } = _pendingNavData;
+    const item = indirizzi[parseInt(selected.value)];
+    const addrText = (typeof item === 'object' ? item.indirizzo : item) || '';
+    const cityText = (typeof item === 'object' && item.citta ? item.citta : city) || '';
+    const query = (addrText && cityText)
+        ? encodeURIComponent(`${addrText}, ${cityText}`)
+        : encodeURIComponent(addrText || cityText);
+
+    closeModal('modal-address-picker');
+
+    // Attende la chiusura del modal prima di aprire il navigatore (o il modal scelta nav)
+    setTimeout(() => openNavigator(query), 350);
 }
 
 document.addEventListener('DOMContentLoaded', () => {
